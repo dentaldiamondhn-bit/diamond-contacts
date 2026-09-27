@@ -303,7 +303,13 @@ const labelList = useMemo(() => labels ?? [], [labels]);
 
   const handleAddLabel = async (name: string, color?: string) => {
     if (!userId) return;
-    await createLocalLabel(userId, name, color);
+    try {
+      await createLocalLabel(userId, name, color);
+    } catch (err) {
+      // createLocalLabel rejects duplicate/empty names; the sidebar shows this
+      // inline, the detail sheet has nowhere to render it.
+      console.warn('[labels]', (err as Error).message);
+    }
   };
 
   const handleRenameLabel = async (id: string, name: string, color: string) => {

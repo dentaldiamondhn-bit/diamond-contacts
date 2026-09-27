@@ -64,6 +64,7 @@ export function ContactSidebar({
 }: ContactSidebarProps) {
   const [addingLabel, setAddingLabel] = useState(false);
   const [labelName, setLabelName] = useState('');
+  const [labelError, setLabelError] = useState('');
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<LocalLabel | null>(null);
   const [editFor, setEditFor] = useState<LocalLabel | null>(null);
@@ -88,11 +89,17 @@ export function ContactSidebar({
 
   const submitLabel = () => {
     const name = labelName.trim();
-    if (name) {
-      onAddLabel(name);
-      setLabelName('');
-      setAddingLabel(false);
+    if (!name) return;
+    // contact_labels is UNIQUE (user_id, name): block the duplicate here so the
+    // sync push never has to recover from a 409.
+    if (labels.some((l) => l.name.trim().toLowerCase() === name.toLowerCase())) {
+      setLabelError(`Ya existe una etiqueta llamada "${name}"`);
+      return;
     }
+    onAddLabel(name);
+    setLabelName('');
+    setLabelError('');
+    setAddingLabel(false);
   };
 
   const doDeleteLabel = async (label: LocalLabel) => {
@@ -165,12 +172,16 @@ export function ContactSidebar({
               <input
                 autoFocus
                 value={labelName}
-                onChange={(e) => setLabelName(e.target.value)}
+                onChange={(e) => {
+                  setLabelName(e.target.value);
+                  if (labelError) setLabelError('');
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') submitLabel();
                   if (e.key === 'Escape') {
                     setAddingLabel(false);
                     setLabelName('');
+                    setLabelError('');
                   }
                 }}
                 placeholder="Nueva etiqueta..."
@@ -183,12 +194,16 @@ export function ContactSidebar({
                 onClick={() => {
                   setAddingLabel(false);
                   setLabelName('');
+                  setLabelError('');
                 }}
                 className="text-zinc-400"
               >
                 <X size={16} />
               </button>
             </div>
+          )}
+          {addingLabel && labelError && (
+            <p className="mt-1 px-1 text-xs text-red-600 dark:text-red-400">{labelError}</p>
           )}
         </div>
 

@@ -170,50 +170,62 @@ async function pushLabels(userId: string): Promise<number> {
   let pushed = 0
   for (const label of unsynced) {
     try {
-      // UPDATE-first: a label that already exists remotely (rename/color edit
-      // while synced=1, or a re-created row) must keep its id stable — the
-      // ORG/TITLE/ADR CardDAV junction keys off it. INSERT only when free.
-      const { data: existing } = await supabase
-        .from('contact_labels')
-        .select('id')
-        .eq('id', label.id)
-        .maybeSingle()
-      if (existing) {
-        await supabase
+      // Resolve the remote row BEFORE writing. A label that already exists
+      // remotely (rename/color edit while synced=1, a re-created row, or another
+      // device) must keep its id stable — the ORG/TITLE/ADR CardDAV junction keys
+      // off it. Matching on (user_id, name) as well as id means a name collision
+      // ADOPTS the server row instead of provoking a 409 from the insert
+      // (contact_labels_user_id_name_key), which the browser logs as a red
+      // network error even though the catch below recovers from it.
+      const [{ data: byId }, { data: byName }] = await Promise.all([
+        supabase
           .from('contact_labels')
-          .update({ name: label.name, color: label.color })
+          .select('id, name, color')
           .eq('id', label.id)
-          .throwOnError()
-      } else {
+          .maybeSingle(),
+        supabase
+          .from('contact_labels')
+          .select('id, name, color')
+          .eq('user_id', userId)
+          .eq('name', label.name)
+          .maybeSingle(),
+      ])
+
+      const server = byId ?? byName
+      if (!server) {
         await supabase.from('contact_labels').insert({
           id: label.id,
           user_id: userId,
           name: label.name,
           color: label.color,
         }).throwOnError()
+      } else if (server.id !== label.id) {
+        // Same name, different id: fold the local row onto the server one so
+        // local references (and the junction rows) keep pointing at a real label.
+        await adoptRemoteLabel(label.id, server, userId)
+        pushed += 1
+        continue
+      } else {
+        await supabase
+          .from('contact_labels')
+          .update({ name: label.name, color: label.color })
+          .eq('id', label.id)
+          .throwOnError()
       }
       await db.labels.update(label.id, { synced: 1 })
       pushed += 1
     } catch (err) {
       if ((err as { code?: string }).code === '23505') {
-        // Duplicate name (or id) — adopt the existing server row so local
-        // references keep pointing at a valid label and sync converges.
-        const { data: byId } = await supabase
+        // Lost the race against a concurrent insert (another device, or the
+        // /api/contacts/tags route): adopt the row that won.
+        const { data: byName } = await supabase
           .from('contact_labels')
           .select('id, name, color')
-          .eq('id', label.id)
+          .eq('user_id', userId)
+          .eq('name', label.name)
           .maybeSingle()
-        const { data: byName } = byId
-          ? { data: null }
-          : await supabase
-              .from('contact_labels')
-              .select('id, name, color')
-              .eq('user_id', userId)
-              .eq('name', label.name)
-              .maybeSingle()
-        const server = byId ?? byName
-        if (server) {
-          await adoptRemoteLabel(label.id, server, userId)
+        if (byName && byName.id !== label.id) {
+          await adoptRemoteLabel(label.id, byName, userId)
           pushed += 1
         }
         continue
@@ -785,11 +797,19 @@ export async function removeMedicalHistory(contactId: string): Promise<void> {
 }
 
 export async function createLocalLabel(userId: string, name: string, color?: string): Promise<LocalLabel> {
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error('El nombre de la etiqueta está vacío')
+  // contact_labels is UNIQUE (user_id, name), so a duplicate created here could
+  // only ever reach the server as a 409 — reject it up front instead.
+  const siblings = await db.labels.where('user_id').equals(userId).toArray()
+  if (siblings.some((l) => l.name.trim().toLowerCase() === trimmed.toLowerCase())) {
+    throw new Error(`Ya existe una etiqueta llamada "${trimmed}"`)
+  }
   const id = newLocalId()
   const label: LocalLabel = {
     id,
     user_id: userId,
-    name,
+    name: trimmed,
     color: color ?? LABEL_COLORS[newLocalId().charCodeAt(0) % LABEL_COLORS.length],
     synced: 0,
   }
