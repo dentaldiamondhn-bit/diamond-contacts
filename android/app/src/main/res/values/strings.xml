@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Diamond Contacts</string>
+    <string name="title_activity_main">Diamond Contacts</string>
+    <string name="package_name">com.diamondlink.contacts</string>
+    <string name="custom_url_scheme">com.diamondlink.contacts</string>
+</resources>
