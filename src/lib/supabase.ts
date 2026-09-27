@@ -1,7 +1,14 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+function requireEnv(name: string): string {
+  const value = process.env[name]
+  if (!value) {
+    throw new Error(
+      `Missing environment variable ${name}. Add it to the deployment environment (Vercel project settings) and redeploy.`
+    )
+  }
+  return value
+}
 
 /**
  * ONE GoTrueClient per browser context.
@@ -20,31 +27,60 @@ const shared = globalThis as {
 
 function getSupabaseClient(): SupabaseClient {
   if (!shared.__diamondSupabaseClient) {
-    shared.__diamondSupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce',
-      },
-      global: {
-        headers: {
-          'X-Client-Info': 'calendar-app'
-        }
-      },
-      db: {
-        schema: 'public'
-      },
-      realtime: {
-        params: {
-          eventsPerSecond: 10
+    shared.__diamondSupabaseClient = createClient(
+      requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
+      requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+      {
+        auth: {
+          persistSession: true,
+          detectSessionInUrl: true,
+          flowType: 'pkce',
+        },
+        global: {
+          headers: {
+            'X-Client-Info': 'calendar-app'
+          }
+        },
+        db: {
+          schema: 'public'
+        },
+        realtime: {
+          params: {
+            eventsPerSecond: 10
+          }
         }
       }
-    })
+    )
   }
   return shared.__diamondSupabaseClient
 }
 
-export const supabase = getSupabaseClient()
+let lazyClient: SupabaseClient | undefined
+
+/**
+ * `supabase` is a stable handle that builds the real client on FIRST USE.
+ *
+ * This module is pulled into the client page bundle, so it is also evaluated
+ * while `next build` collects page data and prerenders `/` — a module-scope
+ * `createClient()` (or an eager `getSupabaseClient()`) threw "supabaseUrl is
+ * required." there whenever the env vars were not present at build time, failing
+ * the whole build. Deferring creation keeps the singleton and browser-only cost,
+ * and the missing-var error now surfaces with an actionable message.
+ */
+function getLazySupabaseClient(): SupabaseClient {
+  if (!lazyClient) {
+    lazyClient = new Proxy({} as SupabaseClient, {
+      get(_target, prop) {
+        const client = getSupabaseClient() as unknown as Record<PropertyKey, unknown>
+        const value = client[prop]
+        return typeof value === 'function' ? value.bind(client) : value
+      },
+    })
+  }
+  return lazyClient
+}
+
+export const supabase = getLazySupabaseClient()
 // Realtime channels use the SAME client/goTrue instance — no second GoTrueClient.
 export const realtimeSupabase = supabase
 
@@ -52,8 +88,8 @@ export { createClient, getSupabaseClient }
 
 export function createServiceClient(): SupabaseClient {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
+    requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
     {
       auth: {
         persistSession: false,

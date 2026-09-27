@@ -1,23 +1,39 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+/**
+ * Env is read INSIDE the factory, never at module scope: `next build` evaluates
+ * route modules while collecting page data, and a module-scope `createClient()`
+ * throws "supabaseUrl is required." there, failing the whole build.
+ */
+function requireEnv(name: string): string {
+  const value = process.env[name]
+  if (!value) {
+    throw new Error(
+      `Missing environment variable ${name}. Add it to the deployment environment (Vercel project settings) and redeploy.`
+    )
+  }
+  return value
+}
 
 export const createClient = () => {
-  return createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-    global: {
-      headers: {
-        'X-Client-Info': 'calendar-app-server'
+  return createSupabaseClient(
+    requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
+    requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'calendar-app-server'
+        }
+      },
+      db: {
+        schema: 'public'
       }
-    },
-    db: {
-      schema: 'public'
     }
-  })
+  )
 }
 
 /**
@@ -30,18 +46,22 @@ export const createClient = () => {
  * ownership predicates (Migration 20260908_calendario_phase0_security.sql).
  */
 export const createServerServiceClient = () => {
-  return createSupabaseClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-    global: {
-      headers: {
-        'X-Client-Info': 'calendar-app-server-service'
+  return createSupabaseClient(
+    requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
+    requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'calendar-app-server-service'
+        }
+      },
+      db: {
+        schema: 'public'
       }
-    },
-    db: {
-      schema: 'public'
     }
-  })
+  )
 }

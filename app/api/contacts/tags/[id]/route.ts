@@ -4,14 +4,13 @@ import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
 
-const supabase = createClient();
-
 // PATCH /api/contacts/tags/[id] - Rename / recolor a label
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const supabase = createClient();
     const { id } = await params;
     const { userId } = await auth();
     if (!userId) {
@@ -71,6 +70,7 @@ export async function PATCH(
 // DELETE /api/contacts/tags/[id] - Delete a label (junctions cascade)
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const supabase = createClient();
     const { id } = await params;
     const { userId } = await auth();
     if (!userId) {

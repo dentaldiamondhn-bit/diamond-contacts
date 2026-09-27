@@ -4,11 +4,10 @@ import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
 
-const supabase = createClient();
-
 // GET /api/contacts/tags - List the current user's labels
 export async function GET() {
   try {
+    const supabase = createClient();
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -32,6 +31,7 @@ export async function GET() {
 // POST /api/contacts/tags - Create a label
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createClient();
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
