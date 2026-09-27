@@ -1,7 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-function requireEnv(name: string): string {
-  const value = process.env[name]
+/**
+ * Values MUST be passed as static `process.env.NEXT_PUBLIC_*` member accesses at
+ * the call site: webpack's DefinePlugin only replaces that exact expression, so a
+ * computed `process.env[name]` survives into the browser bundle as a runtime
+ * lookup — and `process.env` is empty there, so every read came back undefined.
+ */
+function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(
       `Missing environment variable ${name}. Add it to the deployment environment (Vercel project settings) and redeploy.`
@@ -27,30 +32,31 @@ const shared = globalThis as {
 
 function getSupabaseClient(): SupabaseClient {
   if (!shared.__diamondSupabaseClient) {
-    shared.__diamondSupabaseClient = createClient(
-      requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
-      requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
-      {
-        auth: {
-          persistSession: true,
-          detectSessionInUrl: true,
-          flowType: 'pkce',
-        },
-        global: {
-          headers: {
-            'X-Client-Info': 'calendar-app'
-          }
-        },
-        db: {
-          schema: 'public'
-        },
-        realtime: {
-          params: {
-            eventsPerSecond: 10
-          }
+    const url = requireEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL)
+    const anonKey = requireEnv(
+      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    )
+    shared.__diamondSupabaseClient = createClient(url, anonKey, {
+      auth: {
+        persistSession: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce',
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'calendar-app'
+        }
+      },
+      db: {
+        schema: 'public'
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10
         }
       }
-    )
+    })
   }
   return shared.__diamondSupabaseClient
 }
@@ -88,8 +94,8 @@ export { createClient, getSupabaseClient }
 
 export function createServiceClient(): SupabaseClient {
   return createClient(
-    requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
-    requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
+    requireEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL),
+    requireEnv('SUPABASE_SERVICE_ROLE_KEY', process.env.SUPABASE_SERVICE_ROLE_KEY),
     {
       auth: {
         persistSession: false,

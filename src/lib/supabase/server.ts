@@ -4,9 +4,11 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
  * Env is read INSIDE the factory, never at module scope: `next build` evaluates
  * route modules while collecting page data, and a module-scope `createClient()`
  * throws "supabaseUrl is required." there, failing the whole build.
+ *
+ * Values arrive as arguments on purpose — webpack only inlines the literal
+ * `process.env.NEXT_PUBLIC_*` member expression, never a computed lookup.
  */
-function requireEnv(name: string): string {
-  const value = process.env[name]
+function requireEnv(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(
       `Missing environment variable ${name}. Add it to the deployment environment (Vercel project settings) and redeploy.`
@@ -17,8 +19,8 @@ function requireEnv(name: string): string {
 
 export const createClient = () => {
   return createSupabaseClient(
-    requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
-    requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+    requireEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL),
+    requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
     {
       auth: {
         persistSession: false,
@@ -47,8 +49,8 @@ export const createClient = () => {
  */
 export const createServerServiceClient = () => {
   return createSupabaseClient(
-    requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
-    requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
+    requireEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL),
+    requireEnv('SUPABASE_SERVICE_ROLE_KEY', process.env.SUPABASE_SERVICE_ROLE_KEY),
     {
       auth: {
         persistSession: false,
