@@ -42,7 +42,7 @@ import { DeleteContactModal } from '@/components/contacts/DeleteContactModal';
 import { ImportExportModal } from '@/components/contacts/ImportExportModal';
 import { Button } from '@/components/ui/button';
 import { UserPreferencesService } from '@/services/userPreferencesService';
-import { requestContactsPermissionOnStart } from '@/services/nativeContactsService';
+import { requestContactsPermissionOnStart, syncAllToNative } from '@/services/nativeContactsService';
 
 type EditorState = { open: boolean; editing: LocalContact | null };
 
@@ -78,6 +78,7 @@ export default function ContactosPage() {
   const [medicalEditor, setMedicalEditor] = useState<LocalContact | null>(null);
   const [importExportOpen, setImportExportOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<LocalContact[] | null>(null);
+  const [nativeSync, setNativeSync] = useState<'idle' | 'syncing' | 'done'>('idle');
   const isOnline = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, () => ONLINE_SSR_SNAPSHOT);
   const syncRef = useRef<{ syncNow: () => Promise<number> } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -348,6 +349,18 @@ const labelList = useMemo(() => labels ?? [], [labels]);
 
   const handleResync = () => void syncRef.current?.syncNow();
 
+  const handleSyncNative = async () => {
+    if (!activeBase) return;
+    setNativeSync('syncing');
+    try {
+      await syncAllToNative(activeBase.filter((c) => !c.is_archived && c.deleted === 0));
+      setNativeSync('done');
+      setTimeout(() => setNativeSync('idle'), 2500);
+    } catch {
+      setNativeSync('idle');
+    }
+  };
+
   const loading = contacts === undefined;
 
   return (
@@ -366,6 +379,8 @@ const labelList = useMemo(() => labels ?? [], [labels]);
         onDeleteLabel={handleDeleteLabel}
         onImportExport={() => setImportExportOpen(true)}
         onResync={handleResync}
+        onSyncNative={() => void handleSyncNative()}
+        nativeSync={nativeSync}
       />
 
       <main className="flex-1 flex flex-col overflow-hidden">

@@ -17,6 +17,8 @@ import {
   Activity,
   MoreVertical,
   Pencil,
+  Smartphone,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ContactFilter, LocalLabel } from '@/lib/contacts/db';
@@ -36,6 +38,8 @@ interface ContactSidebarProps {
   onDeleteLabel: (id: string) => void | Promise<void>;
   onImportExport: () => void;
   onResync: () => void;
+  onSyncNative: () => void | Promise<void>;
+  nativeSync?: 'idle' | 'syncing' | 'done';
 }
 
 function navCls(active: boolean): string {
@@ -61,6 +65,8 @@ export function ContactSidebar({
   onDeleteLabel,
   onImportExport,
   onResync,
+  onSyncNative,
+  nativeSync = 'idle',
 }: ContactSidebarProps) {
   const [addingLabel, setAddingLabel] = useState(false);
   const [labelName, setLabelName] = useState('');
@@ -285,6 +291,30 @@ export function ContactSidebar({
               )}
             </div>
           ))}
+        </div>
+
+        <div className="pt-4">
+          <button
+            className={navCls(false)}
+            onClick={() => void onSyncNative()}
+            disabled={nativeSync === 'syncing'}
+            title="Escribe todos los contactos en la agenda nativa del Android (cuenta sincronizable)"
+          >
+            <span className="flex items-center gap-2">
+              {nativeSync === 'syncing' ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : nativeSync === 'done' ? (
+                <Check size={14} className="text-emerald-500" />
+              ) : (
+                <Smartphone size={14} />
+              )}
+              {nativeSync === 'syncing'
+                ? 'Sincronizando…'
+                : nativeSync === 'done'
+                  ? 'Agenda nativa actualizada'
+                  : 'Sincronizar Agenda Nativa'}
+            </span>
+          </button>
         </div>
 
         <div className="pt-4">

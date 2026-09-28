@@ -78,6 +78,17 @@ export interface MedicalHistory {
   synced: 0 | 1
 }
 
+/** Native Android Address Book mapping for a Diamond Contacts record. */
+export interface NativeMirror {
+  appContactId: string
+  nativeContactId?: string
+  rawContactId?: string
+  accountType?: string
+  accountName?: string
+  phone?: string
+  updatedAt: string
+}
+
 /** Window (days) used by the "Historiales Recientes" filter. */
 export const RECENT_HISTORY_DAYS = 60
 
@@ -85,6 +96,7 @@ class ContactsDatabase extends Dexie {
   contacts!: Table<LocalContact, string>
   labels!: Table<LocalLabel, string>
   medicalHistories!: Table<MedicalHistory, string>
+  nativeMirrors!: Table<NativeMirror, string>
 
   constructor() {
     super('ClinicContactsDB')
@@ -96,6 +108,12 @@ class ContactsDatabase extends Dexie {
       contacts: 'id, user_id, first_name, last_name, synced, deleted, updated_at',
       labels: 'id, user_id, name',
       medicalHistories: 'contactId, updatedAt, synced',
+    })
+    this.version(3).stores({
+      contacts: 'id, user_id, first_name, last_name, synced, deleted, updated_at',
+      labels: 'id, user_id, name',
+      medicalHistories: 'contactId, updatedAt, synced',
+      nativeMirrors: 'appContactId, phone',
     })
   }
 }

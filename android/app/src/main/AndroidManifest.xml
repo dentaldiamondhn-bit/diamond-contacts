@@ -38,6 +38,21 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- System Contacts Permissions -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+
+    <!-- Account & Sync Permissions for WhatsApp/App Discovery -->
+    <!-- GET_ACCOUNTS lets platform apps (WhatsApp, Google Contacts) discover
+         the account under which our raw contacts are stored; declaring an
+         authenticator-linked account requires a custom Authenticator, so these
+         are declared to match legacy 6.x-8.x ContactsProvider sync behavior. -->
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <uses-permission android:name="android.permission.AUTHENTICATE_ACCOUNTS" />
+
+    <!-- Phone & SMS Permissions -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
 </manifest>
