@@ -124,13 +124,14 @@ public class NativeContactsBridge extends Plugin {
         final String givenName = str(call, "givenName");
         final String familyName = str(call, "familyName");
         final String phone = str(call, "phone");
+        final String e164 = str(call, "e164");
         final String email = str(call, "email");
         final String note = str(call, "note");
         final String accountType = call.getString("accountType", null);
         final String accountName = call.getString("accountName", null);
         executor.execute(() -> {
             try {
-                call.resolve(upsertSync(givenName, familyName, phone, email, note, accountType, accountName));
+                call.resolve(upsertSync(givenName, familyName, phone, e164, email, note, accountType, accountName));
             } catch (Exception e) {
                 android.util.Log.e(TAG, "upsertContact failed", e);
                 call.reject("upsertContact: " + e.getMessage(), e);
@@ -138,17 +139,18 @@ public class NativeContactsBridge extends Plugin {
         });
     }
 
-    private JSObject upsertSync(String givenName, String familyName, String phone, String email,
-                                String note, String accountType, String accountName) {
-        String phoneDigits = normalizeNumber(phone);
+    private JSObject upsertSync(String givenName, String familyName, String phone, String e164,
+                                String email, String note, String accountType, String accountName) {
+        String phoneDigits = normalizeNumber(phone.isEmpty() ? e164 : phone);
         if (phoneDigits.isEmpty()) {
             throw new IllegalArgumentException("phone number required");
         }
+        String normalizedE164 = e164.isEmpty() ? "+" + phoneDigits : e164;
 
         DataMatch existing = findPhoneMatch(phoneDigits);
 
         if (existing != null) {
-            updateDataValue(existing.dataId, ContactsContract.CommonDataKinds.Phone.NUMBER, phone);
+            updatePhoneData(existing.dataId, phone, normalizedE164);
             upsertStructuredName(existing.rawId, givenName, familyName);
             upsertEmail(existing.rawId, email);
             upsertNote(existing.rawId, note);
@@ -177,6 +179,7 @@ public class NativeContactsBridge extends Plugin {
         upsertStructuredName(rawId, givenName, familyName);
         insertRow(ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE, rawId,
                 new Value(ContactsContract.CommonDataKinds.Phone.NUMBER, phone),
+                new Value(ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER, normalizedE164),
                 new Value(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE),
                 new Value(ContactsContract.CommonDataKinds.Phone.LABEL, "mobile"),
                 new Value(ContactsContract.CommonDataKinds.Phone.IS_PRIMARY, 1));
@@ -220,12 +223,15 @@ public class NativeContactsBridge extends Plugin {
         if (digits.isEmpty()) return 0;
         Set<String> rawIds = new HashSet<>();
         try (Cursor c = cr().query(ContactsContract.Data.CONTENT_URI,
-                new String[]{ContactsContract.Data.RAW_CONTACT_ID},
+                new String[]{ContactsContract.Data.RAW_CONTACT_ID,
+                        ContactsContract.CommonDataKinds.Phone.NUMBER,
+                        ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER},
                 ContactsContract.Data.MIMETYPE + " = ?",
                 new String[]{ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE}, null)) {
             while (c != null && c.moveToNext()) {
                 String number = c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER));
-                if (number != null && normalizeNumber(number).equals(digits)) {
+                String normalized = c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER));
+                if (matchesPhone(number, normalized, digits)) {
                     rawIds.add(c.getString(c.getColumnIndexOrThrow(ContactsContract.Data.RAW_CONTACT_ID)));
                 }
             }
@@ -254,6 +260,7 @@ public class NativeContactsBridge extends Plugin {
                                 c.optString("givenName", ""),
                                 c.optString("familyName", ""),
                                 c.optString("phone", ""),
+                                c.optString("e164", ""),
                                 c.optString("email", ""),
                                 c.optString("notes", ""),
                                 accountType, accountName);
@@ -301,12 +308,14 @@ public class NativeContactsBridge extends Plugin {
     private DataMatch findPhoneMatch(String digits) {
         try (Cursor c = cr().query(ContactsContract.Data.CONTENT_URI,
                 new String[]{ContactsContract.Data._ID, ContactsContract.Data.RAW_CONTACT_ID,
-                        ContactsContract.CommonDataKinds.Phone.NUMBER},
+                        ContactsContract.CommonDataKinds.Phone.NUMBER,
+                        ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER},
                 ContactsContract.Data.MIMETYPE + " = ?",
                 new String[]{ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE}, null)) {
             while (c != null && c.moveToNext()) {
                 String number = c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER));
-                if (number != null && normalizeNumber(number).equals(digits)) {
+                String normalized = c.getString(c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER));
+                if (matchesPhone(number, normalized, digits)) {
                     return new DataMatch(
                             c.getString(c.getColumnIndexOrThrow(ContactsContract.Data._ID)),
                             c.getString(c.getColumnIndexOrThrow(ContactsContract.Data.RAW_CONTACT_ID)));
@@ -314,6 +323,23 @@ public class NativeContactsBridge extends Plugin {
             }
         }
         return null;
+    }
+
+    /** Matches a phone stored as NUMBER and/or NORMALIZED_NUMBER against digit-only E.164. */
+    private static boolean matchesPhone(String number, String normalized, String digits) {
+        if (number != null && !normalizeNumber(number).isEmpty() && normalizeNumber(number).equals(digits)) {
+            return true;
+        }
+        return normalized != null
+                && !normalizeNumber(normalized).isEmpty()
+                && normalizeNumber(normalized).equals(digits);
+    }
+
+    private void updatePhoneData(String dataId, String display, String e164) {
+        ContentValues v = new ContentValues();
+        v.put(ContactsContract.CommonDataKinds.Phone.NUMBER, display);
+        v.put(ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER, e164);
+        cr().update(ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, Long.parseLong(dataId)), v, null, null);
     }
 
     private void upsertStructuredName(String rawId, String given, String family) {
@@ -369,12 +395,6 @@ public class NativeContactsBridge extends Plugin {
             insertRow(ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE, rawId,
                     new Value(ContactsContract.CommonDataKinds.Note.NOTE, note));
         }
-    }
-
-    private void updateDataValue(String dataId, String column, String value) {
-        ContentValues v = new ContentValues();
-        v.put(column, value);
-        cr().update(ContentUris.withAppendedId(ContactsContract.Data.CONTENT_URI, Long.parseLong(dataId)), v, null, null);
     }
 
     private String findDataRow(String rawId, String mimeType) {

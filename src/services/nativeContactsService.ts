@@ -12,17 +12,20 @@ interface MirrorableContact {
   notes?: string | null;
 }
 
-interface NativeBridgeInput {
+interface BridgeContact {
   givenName: string;
   familyName: string;
+  /** Human-readable display number, e.g. "+504 8855-5983". */
   phone: string;
+  /** Strict E.164, e.g. "+50488555983" (stored into Phone.NORMALIZED_NUMBER). */
+  e164: string;
   email?: string;
   note?: string;
 }
 
 interface NativeBridgePlugin {
   getAccounts(): Promise<{ accounts: Array<{ type: string; name: string; syncable: boolean }> }>;
-  upsertContact(options: NativeBridgeInput & { accountType?: string | null; accountName?: string | null }): Promise<{
+  upsertContact(options: BridgeContact & { accountType?: string | null; accountName?: string | null }): Promise<{
     contactId: string;
     rawContactId: string;
     updated: boolean;
@@ -31,7 +34,7 @@ interface NativeBridgePlugin {
   }>;
   deleteByPhone(options: { phone: string }): Promise<{ deleted: number }>;
   syncAll(options: {
-    contacts: NativeBridgeInput[];
+    contacts: BridgeContact[];
     accountType?: string | null;
     accountName?: string | null;
   }): Promise<{ processed: number; created: number; updated: number; failed: number }>;
@@ -75,14 +78,25 @@ function contactFingerprint(contact: MirrorableContact): string {
   ].join('|');
 }
 
-function toBridgeInput(contact: MirrorableContact): NativeBridgeInput | null {
+/** "+50488555983" -> "+504 8855-5983" (HN mobile layout); falls back to E.164. */
+export function formatDisplayPhone(raw: string): string {
+  const e164 = formatToE164(raw, '+504');
+  const digits = e164.replace(/[^\d]/g, '');
+  if (digits.startsWith('504') && digits.length === 12) {
+    return `+504 ${digits.slice(3, 7)}-${digits.slice(7)}`;
+  }
+  return e164;
+}
+
+function toBridgeInput(contact: MirrorableContact): BridgeContact | null {
   if (!contact.first_name && !contact.last_name) return null;
-  const phone = formatToE164(contact.phones?.[0]?.phone_number, '+504');
-  if (!phone) return null;
+  const e164 = formatToE164(contact.phones?.[0]?.phone_number, '+504');
+  if (!e164) return null;
   return {
     givenName: (contact.first_name ?? '').trim(),
     familyName: (contact.last_name ?? '').trim(),
-    phone,
+    phone: formatDisplayPhone(contact.phones?.[0]?.phone_number ?? ''),
+    e164,
     email: contact.emails?.[0]?.email?.trim() ?? '',
     note: contact.notes?.trim() ?? '',
   };
@@ -215,7 +229,7 @@ export async function syncAllToNative(contacts: MirrorableContact[]): Promise<Na
 
   const valid = contacts
     .map(toBridgeInput)
-    .filter((c): c is NativeBridgeInput => c !== null);
+    .filter((c): c is BridgeContact => c !== null);
 
   if (isBridgeAvailable()) {
     try {
@@ -262,7 +276,7 @@ function clearNativeKeys(id: string): void {
   }
 }
 
-export async function syncContactToAndroidNative(contact: NativeBridgeInput): Promise<{ contactId: string; synced: boolean } | { contactId: null; synced: false }> {
+export async function syncContactToAndroidNative(contact: BridgeContact): Promise<{ contactId: string; synced: boolean } | { contactId: null; synced: false }> {
   if (!Capacitor.isNativePlatform()) return { contactId: null, synced: false };
 
   const permission = await Contacts.requestPermissions();
