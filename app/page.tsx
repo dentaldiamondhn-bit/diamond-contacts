@@ -42,6 +42,7 @@ import { DeleteContactModal } from '@/components/contacts/DeleteContactModal';
 import { ImportExportModal } from '@/components/contacts/ImportExportModal';
 import { Button } from '@/components/ui/button';
 import { UserPreferencesService } from '@/services/userPreferencesService';
+import { requestContactsPermissionOnStart } from '@/services/nativeContactsService';
 
 type EditorState = { open: boolean; editing: LocalContact | null };
 
@@ -97,6 +98,12 @@ export default function ContactosPage() {
     [],
   );
   const trashCount = useLiveQuery(() => db.contacts.where('deleted').equals(1).count(), []);
+
+  // Ask for native contacts permissions right at launch on the Android shell so
+  // the first create/edit is never blocked by a late OS prompt.
+  useEffect(() => {
+    void requestContactsPermissionOnStart();
+  }, []);
 
   useEffect(() => {
     if (!userId) return;

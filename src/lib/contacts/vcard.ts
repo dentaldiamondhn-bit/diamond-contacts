@@ -1,5 +1,6 @@
 import type { LocalContact, LocalContactEmail, LocalContactPhone } from './db'
 import { fullName } from './db'
+import { Capacitor } from '@capacitor/core'
 
 export interface ParsedContact {
   first_name?: string
@@ -117,6 +118,24 @@ export function contactToVCard(c: LocalContact): string {
 
 export function downloadTextFile(name: string, content: string, mime = 'text/vcard'): void {
   const blob = new Blob([content], { type: mime })
+  if (Capacitor.isNativePlatform()) {
+    // Android WebView blocks <a download> + popups; use the native share sheet
+    // (share a .vcf file, save to Drive/TEAMS/etc). Falls back to Web Share
+    // text or the legacy anchor when file sharing is unavailable.
+    if (typeof navigator !== 'undefined' && typeof navigator.canShare === 'function') {
+      const file = new File([blob], name, { type: mime })
+      if (navigator.canShare({ files: [file] })) {
+        void navigator.share({ files: [file], title: name }).catch((err) => {
+          if (err?.name !== 'AbortError') legacyDownload(blob, name)
+        })
+        return
+      }
+    }
+  }
+  legacyDownload(blob, name)
+}
+
+function legacyDownload(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -245,8 +264,12 @@ export function whatsappDeepLink(phone: string, patientName?: string): string {
 }
 
 export function smsDeepLink(phone: string, body?: string): string {
-  const cleaned = phone.replace(/[^\d+]/g, '')
-  return body ? `sms:${cleaned}?body=${encodeURIComponent(body)}` : `sms:${cleaned}`
+  const cleaned = formatToE164(phone, '+504')
+  return cleaned
+    ? body
+      ? `sms:${cleaned}?body=${encodeURIComponent(body)}`
+      : `sms:${cleaned}`
+    : `sms:${phone.replace(/[^\d+]/g, '')}`
 }
 
 /** Shares via the native Web Share API; falls back to copying to the clipboard. */
@@ -277,9 +300,9 @@ export async function sharePatientContact(
   }
 }
 
-export function openPrintView(c: LocalContact): void {
-  const win = window.open('', '_blank', 'width=640,height=800')
-  if (!win) return
+export function openPrintPreview(c: LocalContact): string {
+  // Builds the print-preview markup used by <PrintPreviewModal />. Done here so
+  // the rendering logic stays in one place; callers must NOT window.open().
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const rows: LocalContactPhone[] = c.phones
   const mails: LocalContactEmail[] = c.emails
@@ -291,20 +314,10 @@ export function openPrintView(c: LocalContact): void {
     ] as Array<[string, string]>
   ).filter(([, v]) => v)
 
-  win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(fullName(c))}</title>
-  <style>
-    body{font-family:system-ui,Segoe UI,Roboto,sans-serif;color:#18181b;max-width:520px;margin:40px auto;padding:0 20px}
-    h1{font-size:26px;margin-bottom:4px} .sub{color:#71717a;margin-bottom:24px}
-    section{margin-bottom:24px} h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#a1a1aa;margin-bottom:8px;border-bottom:1px solid #e4e4e7;padding-bottom:6px}
-    ul{list-style:none;padding:0;margin:0} li{padding:5px 0;color:#3f3f46} li b{color:#18181b;display:inline-block;min-width:80px}
-  </style></head><body>
-  <h1>${esc(fullName(c))}</h1>
+  return `<h1>${esc(fullName(c))}</h1>
   <div class="sub">${esc([c.job_title, c.company].filter(Boolean).join(' · ') || 'Contacto')}</div>
   ${rows.length ? `<section><h2>Teléfonos</h2><ul>${rows.map((p) => `<li>${esc(p.phone_number)}</li>`).join('')}</ul></section>` : ''}
   ${mails.length ? `<section><h2>Correos</h2><ul>${mails.map((e) => `<li>${esc(e.email)}</li>`).join('')}</ul></section>` : ''}
   ${c.notes ? `<section><h2>Notas</h2><p>${esc(c.notes)}</p></section>` : ''}
-  ${meta.length ? `<section><h2>Información</h2><ul>${meta.map(([k, v]) => `<li><b>${esc(k)}</b>${esc(v)}</li>`).join('')}</ul></section>` : ''}
-  <script>window.onload=function(){setTimeout(function(){window.print()},150)}</script>
-  </body></html>`)
-  win.document.close()
+  ${meta.length ? `<section><h2>Información</h2><ul>${meta.map(([k, v]) => `<li><b>${esc(k)}</b>${esc(v)}</li>`).join('')}</ul></section>` : ''}`
 }

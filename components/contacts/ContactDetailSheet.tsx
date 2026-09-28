@@ -37,10 +37,11 @@ import {
 import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel, MedicalHistory } from '@/lib/contacts/db';
 import { LABEL_COLORS, formatDate, fullName, primaryPhone } from '@/lib/contacts/db';
-import { openPrintView, sharePatientContact } from '@/lib/contacts/vcard';
+import { sharePatientContact } from '@/lib/contacts/vcard';
 import { dateToDateStr } from '@/calendario/rbcAdapter';
 import { meaningfulMedicalTags } from '@/lib/contacts/patientLink';
 import { PatientLinkModal } from './PatientLinkModal';
+import { PrintPreviewModal } from './PrintPreviewModal';
 import { ContactAvatar } from './ContactAvatar';
 import { ContactQuickActions } from './ContactQuickActions';
 
@@ -154,6 +155,7 @@ export function ContactDetailSheet({
   const [labelName, setLabelName] = useState('');
   const [labelColor, setLabelColor] = useState(LABEL_COLORS[0]);
   const [linkerOpen, setLinkerOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
 
   const open = !!contact;
   if (!contact) return null;
@@ -301,7 +303,7 @@ export function ContactDetailSheet({
                       <Star size={16} className={contact.is_favorite ? 'fill-amber-400' : ''} />
                     </button>
                     <button
-                      onClick={() => openPrintView(contact)}
+                      onClick={() => setPrintOpen(true)}
                       title="Imprimir"
                       className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
                     >
@@ -647,6 +649,9 @@ export function ContactDetailSheet({
       )}
       {!isTrash && contact && (
         <PatientLinkModal key="sheet-linker" open={linkerOpen} contact={contact} onClose={() => setLinkerOpen(false)} />
+      )}
+      {contact && (
+        <PrintPreviewModal open={printOpen} contact={contact} onClose={() => setPrintOpen(false)} />
       )}
     </AnimatePresence>
   );

@@ -2,7 +2,7 @@
 
 import { Send, Phone, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { smsDeepLink, whatsappDeepLink } from '@/lib/contacts/vcard';
+import { formatToE164, smsDeepLink, whatsappDeepLink } from '@/lib/contacts/vcard';
 
 interface ContactQuickActionsProps {
   /** Raw phone number, e.g. "+50499999999" (kept as the native tel: URI). */
@@ -32,7 +32,7 @@ export function ContactQuickActions({ phone, patientName, size = 'md', className
         <Send size={size === 'sm' ? 13 : 16} />
       </a>
       <a
-        href={`tel:${phone}`}
+        href={`tel:${formatToE164(phone, '+504')}`}
         className={cn(btn, 'text-blue-500 hover:bg-blue-500/10')}
         title="Llamar al paciente"
         aria-label="Llamar"

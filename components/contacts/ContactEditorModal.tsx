@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel, PhoneType } from '@/lib/contacts/db';
 import { fullName, newLocalId } from '@/lib/contacts/db';
 import { createLocalContact, updateLocalContact } from '@/lib/contacts/syncEngine';
+import { formatToE164 } from '@/lib/contacts/vcard';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalBody, ModalFooter } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
@@ -113,7 +114,12 @@ export function ContactEditorModal({ open, editing, userId, labels, onClose }: C
       is_favorite: draft.is_favorite,
       is_archived: draft.is_archived,
       label_ids: draft.label_ids,
-      phones: phones.map((p) => ({ id: p.id, type: p.type, phone_number: p.phone_number, is_primary: p.is_primary })),
+      phones: phones.map((p) => ({
+        id: p.id,
+        type: p.type,
+        phone_number: formatToE164(p.phone_number, '+504'),
+        is_primary: p.is_primary,
+      })),
     };
     if (editing) {
       await updateLocalContact(editing.id, payload);

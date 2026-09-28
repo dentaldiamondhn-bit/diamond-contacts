@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
-import { mirrorLocalContact } from '../../services/nativeContactsService'
+import { formatToE164 } from './vcard'
+import { deleteMirroredNativeContact, mirrorLocalContact } from '../../services/nativeContactsService'
 import {
   db,
   newLocalId,
@@ -653,7 +654,7 @@ export async function createLocalContact(userId: string, input: NewContactInput)
     phones: input.phones.map((p) => ({
       id: p.id ?? newLocalId(),
       type: p.type,
-      phone_number: p.phone_number,
+      phone_number: formatToE164(p.phone_number, '+504'),
       is_primary: p.is_primary ?? false,
     })),
     emails: input.emails.map((e) => ({
@@ -698,15 +699,21 @@ export async function updateLocalContact(id: string, patch: UpdateContactPatch):
   const existing = await db.contacts.get(id)
   if (!existing) return
 
-  const { label_ids, ...rest } = patch
+  const { label_ids, phones, ...rest } = patch
   await db.contacts.update(id, {
     ...rest,
     ...(label_ids !== undefined ? { label_ids } : {}),
+    ...(phones !== undefined
+      ? { phones: phones.map((p) => ({ ...p, phone_number: formatToE164(p.phone_number, '+504') })) }
+      : {}),
     version: (existing.version ?? 1) + 1,
     updated_at: new Date().toISOString(),
     synced: 0,
   })
-  void mirrorLocalContact(existing)
+  const updated = await db.contacts.get(id)
+  if (updated) {
+    void mirrorLocalContact(updated)
+  }
   void pushLocalChanges(existing.user_id)
 }
 
@@ -732,6 +739,7 @@ export async function softDeleteLocalContact(id: string): Promise<void> {
     updated_at: new Date().toISOString(),
     synced: 0,
   })
+  void deleteMirroredNativeContact(existing)
   void pushLocalChanges(existing.user_id)
 }
 
