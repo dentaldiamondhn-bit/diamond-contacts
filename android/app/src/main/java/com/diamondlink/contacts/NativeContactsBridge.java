@@ -94,24 +94,37 @@ public class NativeContactsBridge extends Plugin {
         }
     }
 
+    /**
+     * Returns the primary active Google Account, falling back to any registered
+     * account, or null (device-local storage) if none exist.
+     */
+    private Account getPrimaryGoogleAccount(android.content.Context context) {
+        AccountManager accountManager = AccountManager.get(context);
+        Account[] google = accountManager.getAccountsByType("com.google");
+        if (google.length > 0) {
+            return google[0];
+        }
+        Account[] all = accountManager.getAccounts();
+        if (all.length > 0) {
+            return all[0];
+        }
+        return null;
+    }
+
     private String[] chooseAccount(String requestedType, String requestedName) {
-        for (Account a : listContactsAccounts()) {
-            if (requestedType != null && requestedName != null) {
+        if (requestedType != null && requestedName != null) {
+            for (Account a : listContactsAccounts()) {
                 if (requestedType.equals(a.type) && requestedName.equals(a.name)) {
                     return new String[]{a.type, a.name};
                 }
-            } else if ("com.google".equals(a.type)) {
-                try {
-                    if (ContentResolver.getIsSyncable(a, ContactsContract.AUTHORITY) > 0) {
-                        return new String[]{a.type, a.name};
-                    }
-                } catch (SecurityException ignored) {
-                }
             }
         }
-        if (requestedType != null && requestedName != null) {
-            return new String[]{requestedType, requestedName};
+        Account primary = getPrimaryGoogleAccount(getContext());
+        if (primary != null) {
+            android.util.Log.d(TAG, "Binding raw contact to account " + primary.name + " (" + primary.type + ")");
+            return new String[]{primary.type, primary.name};
         }
+        android.util.Log.w(TAG, "No Google/device account found — falling back to tablet local storage");
         return new String[]{null, null};
     }
 
@@ -150,18 +163,29 @@ public class NativeContactsBridge extends Plugin {
         DataMatch existing = findPhoneMatch(phoneDigits);
 
         if (existing != null) {
-            updatePhoneData(existing.dataId, phone, normalizedE164);
-            upsertStructuredName(existing.rawId, givenName, familyName);
-            upsertEmail(existing.rawId, email);
-            upsertNote(existing.rawId, note);
-            String[] acct = readRawAccount(existing.rawId);
-            JSObject out = new JSObject();
-            out.put("contactId", readContactId(existing.rawId));
-            out.put("rawContactId", existing.rawId);
-            out.put("updated", true);
-            out.put("accountType", acct[0]);
-            out.put("accountName", acct[1]);
-            return out;
+            String[] currentAcct = readRawAccount(existing.rawId);
+            boolean isLocal = currentAcct[0] == null || currentAcct[0].trim().isEmpty();
+            String[] target = chooseAccount(accountType, accountName);
+            if (isLocal && target[0] != null && target[1] != null) {
+                android.util.Log.d(TAG, "Re-homing tablet-storage contact (raw " + existing.rawId
+                        + ") into " + target[0] + "/" + target[1]);
+                cr().delete(ContactsContract.RawContacts.CONTENT_URI,
+                        ContactsContract.RawContacts._ID + " = ?", new String[]{existing.rawId});
+                existing = null;
+            } else {
+                updatePhoneData(existing.dataId, phone, normalizedE164);
+                upsertStructuredName(existing.rawId, givenName, familyName);
+                upsertEmail(existing.rawId, email);
+                upsertNote(existing.rawId, note);
+                String[] acct = readRawAccount(existing.rawId);
+                JSObject out = new JSObject();
+                out.put("contactId", readContactId(existing.rawId));
+                out.put("rawContactId", existing.rawId);
+                out.put("updated", true);
+                out.put("accountType", acct[0]);
+                out.put("accountName", acct[1]);
+                return out;
+            }
         }
 
         String[] acct = chooseAccount(accountType, accountName);
