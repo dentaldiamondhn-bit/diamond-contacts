@@ -51,10 +51,10 @@ export default function SignInPage() {
           <div className="mb-6 relative">
             <div className="absolute inset-0 bg-teal-500/20 rounded-full blur-3xl animate-pulse" />
             <Image
-              src="/Logo.svg"
-              alt="Diamond Link Dental"
-              width={120}
-              height={120}
+              src="/contacts.svg"
+              alt="Diamond Contacts"
+              width={144}
+              height={144}
               className="relative drop-shadow-[0_8px_24px_rgba(18,181,162,0.25)]"
               priority
             />
@@ -66,7 +66,7 @@ export default function SignInPage() {
           </div>
 
           <h1 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-2 bg-gradient-to-br from-white to-teal-100 bg-clip-text text-transparent">
-            Diamond Link
+            Diamond Contacts
           </h1>
           <p className="text-teal-400 font-medium mb-3">
             Sonríe con confianza, vive con excelencia.
@@ -95,7 +95,7 @@ export default function SignInPage() {
           </blockquote>
 
           <p className="text-gray-600 text-xs mt-6">
-            &copy; {new Date().getFullYear()} Diamond Link Dental Clinic. Todos los derechos reservados.
+            &copy; {new Date().getFullYear()} Diamond Contacts. Todos los derechos reservados.
           </p>
         </div>
       </div>
@@ -106,15 +106,15 @@ export default function SignInPage() {
           {/* Mobile brand */}
           <div className="lg:hidden text-center mb-8">
             <Image
-              src="/Logo.svg"
-              alt="Diamond Link Dental"
-              width={64}
-              height={64}
+              src="/contacts.svg"
+              alt="Diamond Contacts"
+              width={77}
+              height={77}
               className="mx-auto mb-3 drop-shadow-lg"
               priority
             />
             <h2 className="text-xl font-bold bg-gradient-to-br from-white to-teal-100 bg-clip-text text-transparent">
-              Diamond Link
+              Diamond Contacts
             </h2>
             <p className="text-teal-400 text-sm font-medium">Excellence in Dental Care</p>
           </div>
@@ -180,7 +180,7 @@ appearance={{
           </nav>
 
           <p className="lg:hidden text-center text-gray-600 text-xs mt-4">
-            &copy; {new Date().getFullYear()} Diamond Link Dental
+            &copy; {new Date().getFullYear()} Diamond Contacts
           </p>
         </div>
       </div>

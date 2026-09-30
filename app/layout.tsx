@@ -10,9 +10,12 @@ export const metadata = {
   description: 'Directorio de contactos de la clínica con sincronización local-first',
   manifest: '/manifest.json',
   icons: {
-    icon: '/Logo.svg',
-    shortcut: '/Logo.svg',
-    apple: '/Logo.svg',
+    icon: [
+      { url: '/contacts.svg', type: 'image/svg+xml' },
+      { url: '/contacts.png', type: 'image/png', sizes: '500x500' },
+    ],
+    shortcut: '/contacts.svg',
+    apple: '/contacts.png',
   },
 }
 
@@ -45,9 +48,10 @@ export default function RootLayout({
           <meta name="mobile-web-app-capable" content="yes" />
           <meta name="application-name" content="Diamond Contacts" />
           <link rel="manifest" href="/manifest.json" />
-          <link rel="icon" href="/Logo.svg" />
-          <link rel="shortcut icon" href="/Logo.svg" />
-          <link rel="apple-touch-icon" href="/Logo.svg" />
+          <link rel="icon" type="image/svg+xml" href="/contacts.svg" />
+          <link rel="icon" type="image/png" href="/contacts.png" />
+          <link rel="shortcut icon" href="/contacts.svg" />
+          <link rel="apple-touch-icon" href="/contacts.png" />
         </head>
         <body className={inter.className} suppressHydrationWarning>
           <AppShell>{children}</AppShell>

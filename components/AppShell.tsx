@@ -18,7 +18,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-dvh w-full overflow-hidden bg-background">
       <aside className="hidden md:flex w-14 shrink-0 flex-col items-center gap-3 border-r border-gray-200/70 dark:border-gray-800 bg-gray-100 dark:bg-gray-900 py-3">
         <Link href="/" className="rounded-lg p-1.5 ring-teal-500/40 transition hover:ring-2" aria-label="Contactos">
-          <Image src="/Logo.svg" alt="Diamond Contacts" width={34} height={34} className="rounded-lg" priority />
+          <Image src="/contacts.svg" alt="Diamond Contacts" width={34} height={34} className="rounded-lg" priority />
         </Link>
         <Link
           href="/"
