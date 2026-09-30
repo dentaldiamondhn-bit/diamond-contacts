@@ -7,6 +7,7 @@ import android.content.ContentUris;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Bundle;
 import android.provider.ContactsContract;
 
 import com.getcapacitor.JSArray;
@@ -95,20 +96,44 @@ public class NativeContactsBridge extends Plugin {
     }
 
     /**
-     * Returns the primary active Google Account, falling back to any registered
-     * account, or null (device-local storage) if none exist.
+     * Returns the primary Google Account: prefers dentaldiamondhn@gmail.com,
+     * then the device's primary Google account, else null (device-local storage).
      */
     private Account getPrimaryGoogleAccount(android.content.Context context) {
         AccountManager accountManager = AccountManager.get(context);
         Account[] google = accountManager.getAccountsByType("com.google");
-        if (google.length > 0) {
-            return google[0];
+        if (google.length == 0) {
+            return null;
         }
-        Account[] all = accountManager.getAccounts();
-        if (all.length > 0) {
-            return all[0];
+        for (Account acc : google) {
+            if ("dentaldiamondhn@gmail.com".equalsIgnoreCase(acc.name)) {
+                return acc;
+            }
         }
-        return null;
+        return google[0];
+    }
+
+    /**
+     * Notifies the ContactsProvider of the change and forces an immediate manual
+     * sync on the contacts authority so SyncAdapters (Google, WhatsApp) pick the
+     * new/changed raw contacts up right away.
+     */
+    private void requestContactsSync() {
+        ContentResolver cr0 = getContext().getContentResolver();
+        cr0.notifyChange(ContactsContract.Contacts.CONTENT_URI, null, false);
+        Account target = getPrimaryGoogleAccount(getContext());
+        if (target != null) {
+            try {
+                Bundle extras = new Bundle();
+                extras.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
+                extras.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
+                ContentResolver.requestSync(target, ContactsContract.AUTHORITY, extras);
+            } catch (SecurityException se) {
+                android.util.Log.w(TAG, "requestSync rejected: " + se.getMessage());
+            }
+        } else {
+            android.util.Log.w(TAG, "No Google account to request sync on");
+        }
     }
 
     private String[] chooseAccount(String requestedType, String requestedName) {
@@ -145,6 +170,7 @@ public class NativeContactsBridge extends Plugin {
         executor.execute(() -> {
             try {
                 call.resolve(upsertSync(givenName, familyName, phone, e164, email, note, accountType, accountName));
+                requestContactsSync();
             } catch (Exception e) {
                 android.util.Log.e(TAG, "upsertContact failed", e);
                 call.reject("upsertContact: " + e.getMessage(), e);
@@ -300,6 +326,7 @@ public class NativeContactsBridge extends Plugin {
                         .put("created", created)
                         .put("updated", updated)
                         .put("failed", failed));
+                requestContactsSync();
             } catch (Exception e) {
                 call.reject("syncAll: " + e.getMessage(), e);
             }

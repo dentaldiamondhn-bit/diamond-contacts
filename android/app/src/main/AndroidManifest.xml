@@ -50,6 +50,8 @@
          are declared to match legacy 6.x-8.x ContactsProvider sync behavior. -->
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
     <uses-permission android:name="android.permission.AUTHENTICATE_ACCOUNTS" />
+    <!-- Required for a 3rd-party app to requestSync() contacts on arbitrary accounts/adpaters -->
+    <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
 
     <!-- Phone & SMS Permissions -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
