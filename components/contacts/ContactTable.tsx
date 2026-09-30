@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  CalendarDays,
   Check,
   Delete,
   Download,
@@ -40,6 +41,7 @@ interface ContactTableProps {
   onOpen: (c: LocalContact) => void;
   onQuickEdit: (c: LocalContact) => void;
   onOpenEhr: (c: LocalContact) => void;
+  onSchedule: (c: LocalContact) => void;
   onDelete: (c: LocalContact) => void;
   onRestore: (c: LocalContact) => void;
   onToggleFavorite: (c: LocalContact) => void;
@@ -99,6 +101,7 @@ export function ContactTable({
   onOpen,
   onQuickEdit,
   onOpenEhr,
+  onSchedule,
   onDelete,
   onRestore,
   onToggleFavorite,
@@ -382,6 +385,13 @@ export function ContactTable({
                               <ExternalLink size={15} />
                             </button>
                           )}
+                          <button
+                            onClick={() => onSchedule(contact)}
+                            className="p-1.5 rounded-lg text-zinc-400 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-500/10"
+                            title="Agendar cita"
+                          >
+                            <CalendarDays size={15} />
+                          </button>
                           <button
                             onClick={() => onDelete(contact)}
                             className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"

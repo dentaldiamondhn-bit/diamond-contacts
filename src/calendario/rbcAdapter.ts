@@ -22,3 +22,27 @@ export function dateToTimeStr(date: Date): string {
   const m = String(date.getMinutes()).padStart(2, '0');
   return `${h}:${m}`;
 }
+
+/** `HH:MM` for a given instant, in clinic-local time (wall clock). */
+export function clinicClockTime(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: CLINIC_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const value = (type: string) =>
+    parts.find((part) => part.type === type)?.value || '';
+  const hour = value('hour') === '24' ? '00' : value('hour');
+  return `${hour.padStart(2, '0')}:${value('minute').padStart(2, '0')}`;
+}
+
+/** Coerce a stored clock value to `HH:MM` (strips stray `:ss` suffixes, blanks). */
+export function normalizeTime(time?: string | null): string {
+  const [h, mi] = (time ?? '').split(':');
+  const hh = String(Number(h));
+  const mm = (mi || '').slice(0, 2) || '00';
+  const valid = /^\d{2}$/.test(hh) && Number(hh) <= 23 && /^\d{2}$/.test(mm) && Number(mm) <= 59;
+  return valid ? `${hh}:${mm}` : '';
+}

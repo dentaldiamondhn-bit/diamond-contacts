@@ -16,6 +16,7 @@ import {
   getLabels,
   getMedicalHistory,
   getRecentMedicalHistoryCount,
+  primaryPhone,
   queryContacts,
   sortContacts,
 } from '@/lib/contacts/db';
@@ -41,6 +42,7 @@ import { ContactEditorModal } from '@/components/contacts/ContactEditorModal';
 import { MedicalHistoryModal } from '@/components/contacts/MedicalHistoryModal';
 import { DeleteContactModal } from '@/components/contacts/DeleteContactModal';
 import { ImportExportModal } from '@/components/contacts/ImportExportModal';
+import { CreateAppointmentModal, type PrefilledContact } from '@/components/calendar/CreateAppointmentModal';
 import { Button } from '@/components/ui/button';
 import { UserPreferencesService } from '@/services/userPreferencesService';
 import { requestContactsPermissionOnStart, syncAllToNative } from '@/services/nativeContactsService';
@@ -79,6 +81,7 @@ export default function ContactosPage() {
   const [medicalEditor, setMedicalEditor] = useState<LocalContact | null>(null);
   const [importExportOpen, setImportExportOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [appointmentContact, setAppointmentContact] = useState<LocalContact | null>(null);
   const [pendingDelete, setPendingDelete] = useState<LocalContact[] | null>(null);
   const [nativeSync, setNativeSync] = useState<'idle' | 'syncing' | 'done'>('idle');
   const isOnline = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, () => ONLINE_SSR_SNAPSHOT);
@@ -350,6 +353,19 @@ const labelList = useMemo(() => labels ?? [], [labels]);
     if (c.patient_id) router.push(`/patient-preview/${c.patient_id}`);
   };
 
+  const appointmentPrefill = useMemo<PrefilledContact | null>(() => {
+    if (!appointmentContact) return null;
+    const main = primaryPhone(appointmentContact);
+    return {
+      id: appointmentContact.id,
+      first_name: appointmentContact.first_name ?? '',
+      last_name: appointmentContact.last_name ?? '',
+      phone: main?.phone_number,
+      email: appointmentContact.emails[0]?.email,
+      patient_id: appointmentContact.patient_id,
+    };
+  }, [appointmentContact]);
+
   const handleResync = () => void syncRef.current?.syncNow();
 
   const handleSyncNative = async () => {
@@ -441,6 +457,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
               onOpen={setSheetContact}
               onQuickEdit={() => undefined}
               onOpenEhr={() => undefined}
+              onSchedule={setAppointmentContact}
               onDelete={() => undefined}
               onRestore={() => undefined}
               onToggleFavorite={() => undefined}
@@ -476,6 +493,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
               onOpen={setSheetContact}
               onQuickEdit={(c) => openEditor(c)}
               onOpenEhr={openEhr}
+              onSchedule={setAppointmentContact}
               onDelete={handleDelete}
               onRestore={handleRestore}
               onToggleFavorite={handleToggleFavorite}
@@ -526,6 +544,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
         medical={medical}
         onClose={() => setSheetContact(null)}
         onEdit={openEditor}
+        onSchedule={setAppointmentContact}
         onToggleFavorite={handleToggleFavorite}
         onDelete={handleDelete}
         onRestore={handleRestore}
@@ -566,6 +585,13 @@ const labelList = useMemo(() => labels ?? [], [labels]);
         userId={userId}
         allContacts={(activeBase ?? []).filter((c) => !c.is_archived)}
         onClose={() => setImportExportOpen(false)}
+      />
+
+      <CreateAppointmentModal
+        key={appointmentContact?.id ?? 'appointment'}
+        isOpen={appointmentContact !== null}
+        prefilledContact={appointmentPrefill ?? undefined}
+        onClose={() => setAppointmentContact(null)}
       />
     </div>
   );

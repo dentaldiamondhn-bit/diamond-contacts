@@ -38,7 +38,6 @@ import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel, MedicalHistory } from '@/lib/contacts/db';
 import { LABEL_COLORS, formatDate, fullName, primaryPhone } from '@/lib/contacts/db';
 import { sharePatientContact } from '@/lib/contacts/vcard';
-import { dateToDateStr } from '@/calendario/rbcAdapter';
 import { meaningfulMedicalTags } from '@/lib/contacts/patientLink';
 import { PatientLinkModal } from './PatientLinkModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
@@ -126,6 +125,7 @@ interface ContactDetailSheetProps {
   medical?: MedicalHistory;
   onClose: () => void;
   onEdit: (c: LocalContact) => void;
+  onSchedule: (c: LocalContact) => void;
   onToggleFavorite: (c: LocalContact) => void;
   onDelete: (c: LocalContact) => void;
   onRestore: (c: LocalContact) => void;
@@ -140,6 +140,7 @@ export function ContactDetailSheet({
   medical,
   onClose,
   onEdit,
+  onSchedule,
   onToggleFavorite,
   onDelete,
   onRestore,
@@ -167,18 +168,6 @@ export function ContactDetailSheet({
   const effectiveAllergies = meaningfulMedicalTags(medical?.allergies ?? []);
   const effectiveConditions = meaningfulMedicalTags(medical?.chronicConditions ?? []);
   const effectiveMedications = meaningfulMedicalTags(medical?.currentMedications ?? []);
-
-  const createAppointment = () => {
-    const params = new URLSearchParams();
-    params.set('view', 'day');
-    params.set('date', dateToDateStr(new Date()));
-    params.set('new', '1');
-    const trimmedName = name?.trim();
-    if (trimmedName) params.set('contact_name', trimmedName);
-    if (mainPhone?.phone_number) params.set('phone', mainPhone.phone_number);
-    if (contact.patient_id) params.set('patient_id', contact.patient_id);
-    router.push(`/calendario?${params.toString()}`);
-  };
 
   const openEhr = () => {
     if (contact.patient_id) router.push(`/patient-preview/${contact.patient_id}`);
@@ -291,6 +280,13 @@ export function ContactDetailSheet({
                       <Pencil size={15} /> Editar
                     </button>
                     <button
+                      onClick={() => onSchedule(contact)}
+                      title="Agendar cita"
+                      className="p-2 rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-500/20 transition-colors"
+                    >
+                      <CalendarPlus size={16} />
+                    </button>
+                    <button
                       onClick={() => onToggleFavorite(contact)}
                       title={contact.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
                       className={cn(
@@ -336,10 +332,10 @@ export function ContactDetailSheet({
                   {!isTrash && (
                     <section className="mb-5">
                       <button
-                        onClick={createAppointment}
+                        onClick={() => onSchedule(contact)}
                         className="flex w-full items-center justify-center gap-2 rounded-xl border border-teal-200 dark:border-teal-500/30 bg-teal-50 dark:bg-teal-500/10 px-4 py-3 text-sm font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-500/20 transition-colors"
                       >
-                        <CalendarPlus size={16} /> Crear cita en el calendario
+                        <CalendarPlus size={16} /> Agendar cita
                       </button>
                     </section>
                   )}

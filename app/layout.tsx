@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import AppShell from '@/components/AppShell'
+import { ToastProvider } from '@/components/calendar/Toast'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -54,7 +55,9 @@ export default function RootLayout({
           <link rel="apple-touch-icon" href="/contacts.png" />
         </head>
         <body className={inter.className} suppressHydrationWarning>
-          <AppShell>{children}</AppShell>
+          <ToastProvider>
+            <AppShell>{children}</AppShell>
+          </ToastProvider>
         </body>
       </html>
     </ClerkProvider>
