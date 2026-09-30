@@ -31,6 +31,7 @@ interface ContactSidebarProps {
   labelCounts: Map<string, number>;
   pendingCount: number;
   isOnline: boolean;
+  embedded?: boolean;
   onCreate: () => void;
   onSelect: (filter: ContactFilter) => void;
   onAddLabel: (name: string) => void;
@@ -58,6 +59,7 @@ export function ContactSidebar({
   labelCounts,
   pendingCount,
   isOnline,
+  embedded = false,
   onCreate,
   onSelect,
   onAddLabel,
@@ -120,7 +122,13 @@ export function ContactSidebar({
   };
 
   return (
-    <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+    <aside
+      className={
+        embedded
+          ? 'flex h-full w-full flex-col overflow-hidden border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900'
+          : 'hidden lg:flex w-64 shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900'
+      }
+    >
       <div className="p-4 pb-3">
         <button
           onClick={onCreate}

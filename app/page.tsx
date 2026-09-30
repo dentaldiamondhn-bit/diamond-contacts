@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useUser } from '@clerk/nextjs';
-import { Search, Plus, Stethoscope } from 'lucide-react';
+import { Search, Plus, Stethoscope, Menu } from 'lucide-react';
 import type {
   ContactFilter,
   ContactSort,
@@ -32,6 +32,7 @@ import {
 } from '@/lib/contacts/syncEngine';
 import { exportContacts } from '@/lib/contacts/vcard';
 import { ContactSidebar } from '@/components/contacts/ContactSidebar';
+import { MobileSidebarSheet } from '@/components/contacts/MobileSidebarSheet';
 import { COLUMNS } from '@/components/contacts/columns';
 import { ContactTable } from '@/components/contacts/ContactTable';
 import { ColumnVisibilityDropdown } from '@/components/contacts/ColumnVisibilityDropdown';
@@ -77,6 +78,7 @@ export default function ContactosPage() {
   const [editor, setEditor] = useState<EditorState>({ open: false, editing: null });
   const [medicalEditor, setMedicalEditor] = useState<LocalContact | null>(null);
   const [importExportOpen, setImportExportOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<LocalContact[] | null>(null);
   const [nativeSync, setNativeSync] = useState<'idle' | 'syncing' | 'done'>('idle');
   const isOnline = useSyncExternalStore(subscribeOnline, getOnlineSnapshot, () => ONLINE_SSR_SNAPSHOT);
@@ -151,6 +153,7 @@ export default function ContactosPage() {
       if (e.key === 'Escape') {
         setSheetContact(null);
         setMedicalEditor(null);
+        setMobileNavOpen(false);
         setEditor((s) => (s.open ? { ...s, open: false } : s));
         return;
       }
@@ -364,7 +367,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
   const loading = contacts === undefined;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-zinc-50 dark:bg-zinc-950">
+    <div className="flex h-full min-h-0 bg-zinc-50 dark:bg-zinc-950">
       <ContactSidebar
         labels={labelList}
         activeFilter={filter}
@@ -385,8 +388,15 @@ const labelList = useMemo(() => labels ?? [], [labels]);
 
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header / search */}
-        <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3 flex items-center justify-between gap-4">
-          <div className="relative w-full max-w-xl">
+        <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3 flex items-center justify-between gap-3">
+          <button
+            onClick={() => setMobileNavOpen(true)}
+            className="lg:hidden inline-flex items-center justify-center rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+            aria-label="Abrir menú de navegación"
+          >
+            <Menu size={20} />
+          </button>
+          <div className="relative flex-1 min-w-0 max-w-xl">
             <Search className="absolute left-3 top-2.5 text-zinc-400" size={18} />
             <input
               ref={searchRef}
@@ -479,6 +489,36 @@ const labelList = useMemo(() => labels ?? [], [labels]);
           </div>
         )}
       </main>
+
+      <MobileSidebarSheet open={mobileNavOpen} onClose={() => setMobileNavOpen(false)}>
+        <ContactSidebar
+          embedded
+          labels={labelList}
+          activeFilter={filter}
+          counts={counts}
+          labelCounts={labelCounts}
+          pendingCount={pendingCount ?? 0}
+          isOnline={isOnline}
+          onCreate={() => {
+            openEditor(null);
+            setMobileNavOpen(false);
+          }}
+          onSelect={(f) => {
+            selectFilter(f);
+            setMobileNavOpen(false);
+          }}
+          onAddLabel={handleAddLabel}
+          onRenameLabel={handleRenameLabel}
+          onDeleteLabel={handleDeleteLabel}
+          onImportExport={() => {
+            setImportExportOpen(true);
+            setMobileNavOpen(false);
+          }}
+          onResync={handleResync}
+          onSyncNative={() => void handleSyncNative()}
+          nativeSync={nativeSync}
+        />
+      </MobileSidebarSheet>
 
       <ContactDetailSheet
         contact={sheetContact}

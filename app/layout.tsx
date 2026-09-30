@@ -49,7 +49,7 @@ export default function RootLayout({
           <link rel="shortcut icon" href="/Logo.svg" />
           <link rel="apple-touch-icon" href="/Logo.svg" />
         </head>
-        <body className={`${inter.className} bg-gray-800`} suppressHydrationWarning>
+        <body className={inter.className} suppressHydrationWarning>
           <AppShell>{children}</AppShell>
         </body>
       </html>

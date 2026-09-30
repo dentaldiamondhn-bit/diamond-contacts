@@ -2,13 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom loading state to prevent white screen during refresh */
+/* Viewport background follows the theme tokens so the app content stretches
+   edge-to-edge without charcoal gutters (custom loading state is handled by
+   #loading-overlay below). */
 html {
-  background-color: #1f2937; /* charcoal gray */
+  background-color: hsl(var(--background));
 }
 
 body {
-  background-color: #1f2937; /* charcoal gray */
+  background-color: hsl(var(--background));
 }
 
 /* Mobile-specific optimizations */
@@ -476,6 +478,33 @@ html, body {
 .animate-shimmer {
   animation: shimmer 2s infinite;
   animation-delay: 0.5s;
+}
+
+/* ── Drawer / sheet animations ── */
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.22s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out;
 }
 
 /* ── Animated Gradient Border ── */
