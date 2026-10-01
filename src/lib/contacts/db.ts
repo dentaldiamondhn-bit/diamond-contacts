@@ -131,8 +131,6 @@ export const LABEL_COLORS = [
   '#F97316', // orange
 ]
 
-export const DEFAULT_LABEL_NAMES = ['Pacientes Activos', 'En Tratamiento', 'VIP', 'Seguros']
-
 export function newLocalId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID()

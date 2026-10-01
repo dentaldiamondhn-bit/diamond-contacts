@@ -50,7 +50,7 @@ export async function PATCH(
       .from('contact_labels')
       .update(patch)
       .eq('id', id)
-      .select('id, name, color')
+      .select('id, name, color, updated_at')
       .single();
 
     if (error) {

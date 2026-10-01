@@ -15,7 +15,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('contact_labels')
-      .select('id, name, color')
+      .select('id, name, color, updated_at')
       .eq('user_id', userId)
       .order('name');
 
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('contact_labels')
       .insert({ user_id: userId, name, color })
-      .select('id, name, color')
+      .select('id, name, color, updated_at')
       .single();
 
     if (error) {

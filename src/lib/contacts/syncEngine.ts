@@ -5,7 +5,6 @@ import {
   db,
   newLocalId,
   LABEL_COLORS,
-  DEFAULT_LABEL_NAMES,
   type LocalContact,
   type LocalContactEmail,
   type LocalContactPhone,
@@ -545,6 +544,21 @@ export function subscribeToRealtimeSync(
       { event: '*', schema: 'public', table: 'patient_medical_history', filter: `user_id=eq.${userId}` },
       handleChange,
     )
+    // Etiquetas push live too (migration 20261001 wires contact_labels +
+    // contact_label_junction into supabase_realtime with REPLICA IDENTITY FULL).
+    // The junction has a denormalized user_id so this socket filter keeps other
+    // clinics' junction changes off this client's connection (same pattern as
+    // patient_medical_history).
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'contact_labels', filter: `user_id=eq.${userId}` },
+      handleChange,
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'contact_label_junction', filter: `user_id=eq.${userId}` },
+      handleChange,
+    )
     .subscribe()
 
   return {
@@ -564,19 +578,6 @@ export interface ContactsSyncHandle {
   syncNow: () => Promise<number>
 }
 
-export async function seedDefaultLabels(userId: string): Promise<void> {
-  const count = await db.labels.where('user_id').equals(userId).count()
-  if (count > 0) return
-  const nowIds = DEFAULT_LABEL_NAMES.map((name, i) => ({
-    id: newLocalId(),
-    user_id: userId,
-    name,
-    color: LABEL_COLORS[i % LABEL_COLORS.length],
-    synced: 0 as const,
-  }))
-  await db.labels.bulkAdd(nowIds)
-}
-
 export function initContactsSync(userId: string, onChange?: () => void): ContactsSyncHandle {
   let disposed = false
   const notify = () => {
@@ -585,11 +586,9 @@ export function initContactsSync(userId: string, onChange?: () => void): Contact
 
   const { unsubscribe } = subscribeToRealtimeSync(userId, notify)
 
-  void seedDefaultLabels(userId).then(() =>
-    pullRemoteContacts(userId)
-      .catch((err) => console.error('[sync] pull inicial fallida:', err))
-      .finally(notify),
-  )
+  void pullRemoteContacts(userId)
+    .catch((err) => console.error('[sync] pull inicial fallida:', err))
+    .finally(notify)
 
   const handleOnline = () => {
     void pushLocalChanges(userId)
