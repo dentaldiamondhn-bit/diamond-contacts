@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerServiceClient } from '@/lib/supabase/server';
 import { authorizeCalendar } from '@/lib/calendarAuth';
 import { CLINIC_TIME_ZONE } from '@/calendario/rbcAdapter';
-import { findDentistConflicts, dentistConflictMessage } from '@/lib/dentistAvailability';
+import {
+  findDentistConflicts,
+  dentistConflictMessage,
+  findInviteeConflicts,
+  inviteeConflictMessage,
+} from '@/lib/dentistAvailability';
 
 export const runtime = 'nodejs';
 
@@ -73,9 +78,13 @@ export async function POST(req: Request) {
       dentist,
       phone,
       phone_country,
+      invitees,
     } = body;
 
     const supabase = createServerServiceClient();
+
+    // Invitees = clinic users (doctors/assistants) to book in this slot too.
+    const inviteeIds: string[] = [...new Set((Array.isArray(invitees) ? invitees : []) as string[])].filter(Boolean);
 
     // Server-side dentist availability — refuse with 409 + DENTIST_CONFLICT
     // unless `force_conflict` overrides it.
@@ -101,6 +110,24 @@ export async function POST(req: Request) {
             error: dentistConflictMessage(dentistName),
             code: 'DENTIST_CONFLICT',
             conflicts,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Inviting books the invitees in this slot too — refuse when an invitee
+    // already owns an overlapping event there.
+    if (inviteeIds.length > 0 && !forceConflicts) {
+      const inviteeConflicts = await findInviteeConflicts(
+        supabase, inviteeIds, effectiveDate, effectiveStart, effectiveEnd
+      );
+      if (inviteeConflicts.length > 0) {
+        return NextResponse.json(
+          {
+            error: inviteeConflictMessage(inviteeConflicts),
+            code: 'INVITEE_CONFLICT',
+            conflicts: inviteeConflicts,
           },
           { status: 409 }
         );
@@ -147,6 +174,29 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    // Diff-replace invitees (best-effort: the event itself already saved).
+    if (inviteeIds.length > 0 && data?.id) {
+      const { error: delErr } = await supabase
+        .from('event_invitees')
+        .delete()
+        .eq('event_id', data.id);
+      if (delErr) {
+        console.error('[events POST] invitee cleanup failed', delErr);
+      } else {
+        const rows = inviteeIds.map((user_id) => ({
+          event_id: data.id,
+          user_id,
+          status: 'pending',
+          created_by: userId,
+        }));
+        const { error: insErr } = await supabase.from('event_invitees').insert(rows);
+        if (insErr) {
+          console.error('[events POST] invitee save failed', insErr);
+        }
+      }
+    }
+
     return NextResponse.json(data, { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
