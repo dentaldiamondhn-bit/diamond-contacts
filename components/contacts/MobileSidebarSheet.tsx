@@ -32,7 +32,7 @@ export function MobileSidebarSheet({ open, onClose, children }: MobileSidebarShe
 
   return (
     <div className="fixed inset-0 z-40 lg:hidden">
-      <div className="absolute inset-0 animate-fade-in bg-black/50" onClick={onClose} aria-hidden />
+      <div className="absolute inset-0 animate-fade-in bg-slate-950/45 backdrop-blur-sm" onClick={onClose} aria-hidden />
       <div className="absolute inset-y-0 left-0 flex w-80 max-w-[85vw] animate-slide-in-left shadow-2xl">
         {children}
       </div>

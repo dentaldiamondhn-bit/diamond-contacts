@@ -10,9 +10,12 @@ interface ModalProps {
 const Modal = ({ open, onOpenChange, children }: ModalProps) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange?.(false)} />
-      <div className="relative z-50 w-full max-w-lg mx-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="animate-fade-in fixed inset-0 bg-slate-950/45 backdrop-blur-md"
+        onClick={() => onOpenChange?.(false)}
+      />
+      <div className="relative z-50 w-full max-w-lg mx-auto max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl glass-card">
         {children}
       </div>
     </div>
@@ -21,13 +24,17 @@ const Modal = ({ open, onOpenChange, children }: ModalProps) => {
 
 const ModalContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('rounded-lg bg-white dark:bg-slate-800 shadow-xl', className)} {...props} />
+    <div ref={ref} className={cn('', className)} {...props} />
   )
 );
 
 const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn('flex items-center justify-between px-5 py-4 border-b border-white/40 dark:border-white/5 bg-white/40 dark:bg-white/5', className)}
+      {...props}
+    />
   )
 );
 
@@ -39,13 +46,17 @@ const ModalTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTM
 
 const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('p-4', className)} {...props} />
+    <div ref={ref} className={cn('px-5 py-4', className)} {...props} />
   )
 );
 
 const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('flex items-center justify-end gap-2 p-4 border-t border-slate-200 dark:border-slate-700', className)} {...props} />
+    <div
+      ref={ref}
+      className={cn('flex items-center justify-end gap-2 px-5 py-4 border-t border-white/40 dark:border-white/5 bg-white/40 dark:bg-white/5', className)}
+      {...props}
+    />
   )
 );
 

@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import AppShell from '@/components/AppShell'
+import { ThemeProvider } from '@/components/ThemeProvider'
 import { ToastProvider } from '@/components/calendar/Toast'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -39,7 +40,7 @@ export default function RootLayout({
       signInUrl="/sign-in"
       afterSignOutUrl="/sign-in"
     >
-      <html lang="es">
+      <html lang="es" suppressHydrationWarning>
         <head>
           <meta name="theme-color" content="#14b8a6" />
           <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -55,9 +56,11 @@ export default function RootLayout({
           <link rel="apple-touch-icon" href="/contacts.png" />
         </head>
         <body className={inter.className} suppressHydrationWarning>
-          <ToastProvider>
-            <AppShell>{children}</AppShell>
-          </ToastProvider>
+          <ThemeProvider>
+            <ToastProvider>
+              <AppShell>{children}</AppShell>
+            </ToastProvider>
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

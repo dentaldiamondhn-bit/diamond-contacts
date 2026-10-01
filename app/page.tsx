@@ -383,7 +383,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
   const loading = contacts === undefined;
 
   return (
-    <div className="flex h-full min-h-0 bg-zinc-50 dark:bg-zinc-950">
+    <div className="relative flex h-full min-h-0 bg-white/40 dark:bg-slate-950/40">
       <ContactSidebar
         labels={labelList}
         activeFilter={filter}
@@ -404,7 +404,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
 
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header / search */}
-        <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3 flex items-center justify-between gap-3">
+        <header className="glass-tint shrink-0 border-b border-white/40 px-4 py-3 flex items-center justify-between gap-3 dark:border-white/5">
           <button
             onClick={() => setMobileNavOpen(true)}
             className="lg:hidden inline-flex items-center justify-center rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
@@ -420,7 +420,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
               placeholder="Buscar contactos...  (  /  )"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-100 rounded-lg focus:outline-none focus:bg-white dark:focus:bg-zinc-700 focus:ring-2 focus:ring-blue-500 transition-all"
+              className="w-full pl-10 pr-4 py-2 text-sm rounded-xl bg-white/70 dark:bg-slate-800/70 text-zinc-800 dark:text-zinc-100 border border-white/60 dark:border-white/5 focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-teal-500/60 transition-all"
             />
           </div>
           <Button onClick={() => openEditor(null)} variant="default" className="md:hidden rounded-full p-3 h-auto w-auto">
@@ -441,71 +441,71 @@ const labelList = useMemo(() => labels ?? [], [labels]);
         </header>
 
         {/* Content */}
-        {loading ? (
-          <div className="flex-1 overflow-auto">
-            <ContactTable
-              contacts={[]}
-              selection={prunedSelection}
-              columnVisibility={columnVisibility}
-              sort={sort}
-              isTrash={isTrash}
-              loading
-              labelMap={labelMap}
-              onToggleSort={toggleSort}
-              onToggleSelectAll={toggleSelectAll}
-              onToggleSelect={toggleSelect}
-              onOpen={setSheetContact}
-              onQuickEdit={() => undefined}
-              onOpenEhr={() => undefined}
-              onSchedule={setAppointmentContact}
-              onDelete={() => undefined}
-              onRestore={() => undefined}
-              onToggleFavorite={() => undefined}
-              onExportSelected={() => undefined}
-              onMergeSelected={() => undefined}
-              onArchiveSelected={() => undefined}
-              onDeleteSelected={() => undefined}
-              onRestoreSelected={() => undefined}
-              onPurgeSelected={() => undefined}
-            />
+        <div className="flex-1 min-h-0 p-3">
+          <div className="h-full overflow-hidden rounded-2xl glass-card">
+            {loading ? (
+              <ContactTable
+                contacts={[]}
+                selection={prunedSelection}
+                columnVisibility={columnVisibility}
+                sort={sort}
+                isTrash={isTrash}
+                loading
+                labelMap={labelMap}
+                onToggleSort={toggleSort}
+                onToggleSelectAll={toggleSelectAll}
+                onToggleSelect={toggleSelect}
+                onOpen={setSheetContact}
+                onQuickEdit={() => undefined}
+                onOpenEhr={() => undefined}
+                onSchedule={setAppointmentContact}
+                onDelete={() => undefined}
+                onRestore={() => undefined}
+                onToggleFavorite={() => undefined}
+                onExportSelected={() => undefined}
+                onMergeSelected={() => undefined}
+                onArchiveSelected={() => undefined}
+                onDeleteSelected={() => undefined}
+                onRestoreSelected={() => undefined}
+                onPurgeSelected={() => undefined}
+              />
+            ) : sorted.length === 0 ? (
+              <EmptyState
+                isTrash={isTrash}
+                isLabel={typeof filter === 'object'}
+                isHistory={filter === 'recentHistory'}
+                onCreate={() => openEditor(null)}
+                searchTerm={search}
+              />
+            ) : (
+              <ContactTable
+                contacts={sorted}
+                selection={prunedSelection}
+                columnVisibility={columnVisibility}
+                sort={sort}
+                isTrash={isTrash}
+                loading={false}
+                labelMap={labelMap}
+                onToggleSort={toggleSort}
+                onToggleSelectAll={toggleSelectAll}
+                onToggleSelect={toggleSelect}
+                onOpen={setSheetContact}
+                onQuickEdit={(c) => openEditor(c)}
+                onOpenEhr={openEhr}
+                onSchedule={setAppointmentContact}
+                onDelete={handleDelete}
+                onRestore={handleRestore}
+                onToggleFavorite={handleToggleFavorite}
+                onExportSelected={exportSelected}
+                onMergeSelected={mergeSelected}
+                onArchiveSelected={archiveSelected}
+                onDeleteSelected={trashSelected}
+                onRestoreSelected={restoreSelected}
+                onPurgeSelected={purgeSelected}
+              />
+            )}
           </div>
-        ) : sorted.length === 0 ? (
-          <EmptyState
-            isTrash={isTrash}
-            isLabel={typeof filter === 'object'}
-            isHistory={filter === 'recentHistory'}
-            onCreate={() => openEditor(null)}
-            searchTerm={search}
-          />
-        ) : (
-          <div className="flex-1 overflow-auto">
-            <ContactTable
-              contacts={sorted}
-              selection={prunedSelection}
-              columnVisibility={columnVisibility}
-              sort={sort}
-              isTrash={isTrash}
-              loading={false}
-              labelMap={labelMap}
-              onToggleSort={toggleSort}
-              onToggleSelectAll={toggleSelectAll}
-              onToggleSelect={toggleSelect}
-              onOpen={setSheetContact}
-              onQuickEdit={(c) => openEditor(c)}
-              onOpenEhr={openEhr}
-              onSchedule={setAppointmentContact}
-              onDelete={handleDelete}
-              onRestore={handleRestore}
-              onToggleFavorite={handleToggleFavorite}
-              onExportSelected={exportSelected}
-              onMergeSelected={mergeSelected}
-              onArchiveSelected={archiveSelected}
-              onDeleteSelected={trashSelected}
-              onRestoreSelected={restoreSelected}
-              onPurgeSelected={purgeSelected}
-            />
-          </div>
-        )}
+        </div>
       </main>
 
       <MobileSidebarSheet open={mobileNavOpen} onClose={() => setMobileNavOpen(false)}>
@@ -632,8 +632,8 @@ function EmptyState({
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
       <div className="relative">
-        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-500/20 dark:to-blue-500/5 flex items-center justify-center">
-          <Stethoscope size={40} className="text-blue-500 dark:text-blue-400" strokeWidth={1.5} />
+        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-teal-400/25 to-blue-400/10 dark:from-teal-400/15 dark:to-blue-500/5 ring-1 ring-white/60 dark:ring-white/10 flex items-center justify-center">
+          <Stethoscope size={40} className="text-teal-600 dark:text-teal-400" strokeWidth={1.5} />
         </div>
         <span className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-emerald-500/90 flex items-center justify-center shadow">
           <Plus size={15} className="text-white" />
@@ -642,7 +642,7 @@ function EmptyState({
       <h3 className="mt-5 text-base font-semibold text-zinc-900 dark:text-white">{title}</h3>
       <p className="mt-1.5 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">{subtitle}</p>
       {!isTrash && !searchTerm && (
-        <Button onClick={onCreate} variant="outline" className="mt-5">
+        <Button onClick={onCreate} variant="default" className="mt-5 hover-lift glow-teal">
           <Plus size={16} className="mr-1" /> Crear primer contacto
         </Button>
       )}

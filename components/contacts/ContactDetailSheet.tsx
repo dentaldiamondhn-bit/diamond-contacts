@@ -209,7 +209,7 @@ export function ContactDetailSheet({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/40 dark:bg-black/60"
+            className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-md"
             onClick={onClose}
           />
           <motion.aside
@@ -218,7 +218,7 @@ export function ContactDetailSheet({
             animate={{ x: 0 }}
             exit={{ x: 480 }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md flex flex-col bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl"
+            className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md flex flex-col bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl border-l border-white/40 dark:border-white/5 shadow-2xl"
           >
             {/* Header */}
             <div className="shrink-0 flex flex-col items-center px-6 pt-8 pb-4 border-b border-zinc-200 dark:border-zinc-800">

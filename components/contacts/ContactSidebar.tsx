@@ -45,10 +45,10 @@ interface ContactSidebarProps {
 
 function navCls(active: boolean): string {
   return cn(
-    'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+    'w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors',
     active
-      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
-      : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800/60',
+      ? 'bg-teal-500/15 text-teal-700 shadow-sm dark:bg-teal-400/15 dark:text-teal-300'
+      : 'text-zinc-600 hover:bg-white/70 dark:text-zinc-300 dark:hover:bg-white/10',
   );
 }
 
@@ -125,14 +125,14 @@ export function ContactSidebar({
     <aside
       className={
         embedded
-          ? 'flex h-full w-full flex-col overflow-hidden border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900'
-          : 'hidden lg:flex w-64 shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900'
+          ? 'flex h-full w-full flex-col overflow-hidden border-r border-white/50 dark:border-white/5 bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl'
+          : 'hidden lg:flex w-64 shrink-0 flex-col border-r border-white/50 dark:border-white/5 bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl'
       }
     >
       <div className="p-4 pb-3">
         <button
           onClick={onCreate}
-          className="flex items-center justify-center gap-2 w-full rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 shadow-sm transition-colors"
+          className="flex items-center justify-center gap-2 w-full rounded-full bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-500 hover:to-blue-500 text-white text-sm font-medium px-5 py-2.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0"
         >
           <Plus size={18} /> Crear contacto
         </button>
@@ -254,7 +254,7 @@ export function ContactSidebar({
               </div>
 
               {(menuFor === label.id || confirmDeleteFor?.id === label.id) && (
-                <div className="absolute right-2 top-full mt-0.5 z-40 w-48 rounded-md bg-white dark:bg-zinc-800 shadow-lg ring-1 ring-black/5 ring-opacity-5 dark:ring-zinc-700 py-1">
+                <div className="absolute right-2 top-full mt-0.5 z-40 w-48 rounded-xl bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl shadow-lg ring-1 ring-black/5 dark:ring-zinc-700 py-1">
                   {confirmDeleteFor?.id === label.id ? (
                     <div className="px-3 py-1.5 space-y-2">
                       <p className="text-xs text-zinc-600 dark:text-zinc-300">
@@ -334,7 +334,7 @@ export function ContactSidebar({
         </div>
       </nav>
 
-      <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-800 px-4 py-3">
+      <div className="shrink-0 border-t border-white/50 dark:border-white/5 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs">
             {isOnline ? (

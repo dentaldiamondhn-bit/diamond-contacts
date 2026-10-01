@@ -603,3 +603,101 @@ pre code {
 /* React Big Calendar theming (overlays, event tints, agenda feed) lives in
    src/calendario/rbc-theme.css — imported by the /calendario route and scoped
    to its `.rbc-themed` wrapper. */
+
+/* ── Glassmorphism layer ────────────────────────────────────────────────
+   Transparent panels with blur + saturation; the ambient canvas is a fixed
+   gradient mesh drawn behind the app shell so the blur actually reads. */
+
+.ambient {
+  position: relative;
+}
+
+.ambient::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(60rem 60rem at 10% -10%, rgba(20, 184, 166, 0.16), transparent 55%),
+    radial-gradient(55rem 55rem at 100% 0%, rgba(59, 130, 246, 0.14), transparent 55%),
+    radial-gradient(50rem 50rem at 35% 115%, rgba(168, 85, 247, 0.12), transparent 55%),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.85), rgba(241, 245, 249, 0.95));
+}
+
+.dark .ambient::before {
+  background:
+    radial-gradient(60rem 60rem at 10% -10%, rgba(20, 184, 166, 0.10), transparent 55%),
+    radial-gradient(55rem 55rem at 100% 0%, rgba(59, 130, 246, 0.10), transparent 55%),
+    radial-gradient(50rem 50rem at 35% 115%, rgba(168, 85, 247, 0.09), transparent 55%),
+    linear-gradient(180deg, #060a17, #0b1220);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.62);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 12px 32px -16px rgba(16, 24, 40, 0.16);
+}
+
+.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 12px 32px -16px rgba(0, 0, 0, 0.55);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 24px 48px -20px rgba(16, 24, 40, 0.18);
+}
+
+.dark .glass-card {
+  background: rgba(15, 23, 42, 0.62);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 48px -20px rgba(0, 0, 0, 0.6);
+}
+
+.glass-tint {
+  background: rgba(255, 255, 255, 0.45);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark .glass-tint {
+  background: rgba(30, 41, 59, 0.35);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Soft brand glow used on primary CTAs (hover micro-interaction) */
+.glow-teal {
+  box-shadow:
+    0 8px 24px -8px rgba(20, 184, 166, 0.45),
+    0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+.hover-lift {
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-1px);
+}
+
+.hover-lift:active {
+  transform: translateY(0);
+}
