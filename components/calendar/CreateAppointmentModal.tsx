@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { PROCEDURES, PROCEDURE_COLORS, NO_PROCEDURE_COLOR } from '@/lib/types-calendar';
 import { clinicDateKey, clinicClockTime } from '@/calendario/rbcAdapter';
 import { useToast } from './Toast';
+import { openWhatsAppDirectly } from '@/lib/contacts/vcard';
 
 export interface PrefilledContact {
   id: string;
@@ -174,12 +175,10 @@ export function CreateAppointmentModal({
   const phoneCountry = selectedPatient?.codigopais || '504';
   const color = procedure ? PROCEDURE_COLORS[procedure] ?? NO_PROCEDURE_COLOR : NO_PROCEDURE_COLOR;
 
-  const waLink = useMemo(() => {
+  const waMessage = useMemo(() => {
     if (!phoneDigits) return '';
-    const intl = phoneDigits.startsWith(phoneCountry) ? phoneDigits : `${phoneCountry}${phoneDigits}`;
-    const msg = `Hola ${effectivePatientName || 'paciente'}, te confirmamos tu cita${procedure ? ` de ${procedure}` : ''} para el ${date} a las ${startTime}. ¡Te esperamos!`;
-    return `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`;
-  }, [phoneDigits, effectivePatientName, procedure, date, startTime, phoneCountry]);
+    return `Hola ${effectivePatientName || 'paciente'}, te confirmamos tu cita${procedure ? ` de ${procedure}` : ''} para el ${date} a las ${startTime}. ¡Te esperamos!`;
+  }, [phoneDigits, effectivePatientName, procedure, date, startTime]);
 
   const submit = async (force = false) => {
     setError(null);
@@ -264,16 +263,17 @@ export function CreateAppointmentModal({
                 clínica para el <span className="font-semibold">{date}</span> a las{' '}
                 <span className="font-semibold">{startTime}</span>.
               </p>
-              {waLink && (
-                <a
-                  href={waLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => push('Confirmación enviada por WhatsApp', 'success')}
+              {phoneDigits && waMessage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    push('Confirmación enviada por WhatsApp', 'success');
+                    void openWhatsAppDirectly(effectivePhone, waMessage, `+${phoneCountry}`);
+                  }}
                   className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 transition-colors"
                 >
                   <MessageCircle size={16} /> Enviar confirmación por WhatsApp
-                </a>
+                </button>
               )}
             </div>
           </ModalBody>

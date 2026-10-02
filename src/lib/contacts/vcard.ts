@@ -1,6 +1,7 @@
 import type { LocalContact, LocalContactEmail, LocalContactPhone } from './db'
 import { fullName } from './db'
 import { Capacitor } from '@capacitor/core'
+import { AppLauncher } from '@capacitor/app-launcher'
 
 export interface ParsedContact {
   first_name?: string
@@ -252,15 +253,55 @@ export function whitelistPhoneForWhatsApp(phone: string): string {
 
 const CLINIC_GREETING = 'Clínica Dental Diamond'
 
+/** Default WhatsApp greeting used by the quick actions ("Hola {nombre}, …"). */
+export function whatsappGreeting(patientName?: string): string {
+  return patientName ? `Hola ${patientName}, le saludamos de ${CLINIC_GREETING}.` : ''
+}
+
 export function whatsappDeepLink(phone: string, patientName?: string): string {
   const e164 = formatToE164(phone)
-  const text = patientName ? `Hola ${patientName}, le saludamos de ${CLINIC_GREETING}.` : undefined
+  const text = whatsappGreeting(patientName)
   if (!e164) {
     const base = `https://wa.me/${whitelistPhoneForWhatsApp(phone)}`
     return text ? `${base}?text=${encodeURIComponent(text)}` : base
   }
   const base = `https://wa.me/${e164.replace('+', '')}`
   return text ? `${base}?text=${encodeURIComponent(text)}` : base
+}
+
+/**
+ * Opens a WhatsApp chat from any context:
+ * - Web / PWA: standard `https://wa.me/<digits>?text=…` in a new tab, which
+ *   browser handlers redirect to WhatsApp smoothly.
+ * - Native (Capacitor Android): dispatches a `whatsapp://send?phone=…&text=…`
+ *   intent straight to the Android OS via `@capacitor/app-launcher`, bypassing
+ *   the WebView; falls back to https://wa.me if WhatsApp is not installed.
+ */
+export async function openWhatsAppDirectly(
+  phone: string,
+  textMessage = '',
+  defaultCountry = '+504',
+): Promise<void> {
+  const e164 = formatToE164(phone, defaultCountry)
+  const digits = (e164 || whitelistPhoneForWhatsApp(phone)).replace('+', '')
+  if (!digits) return
+
+  const encodedText = encodeURIComponent(textMessage)
+  const httpsUrl = `https://wa.me/${digits}${textMessage ? `?text=${encodedText}` : ''}`
+
+  if (Capacitor.isNativePlatform()) {
+    const intentUrl = `whatsapp://send?phone=${digits}${textMessage ? `&text=${encodedText}` : ''}`
+    try {
+      await AppLauncher.openUrl({ url: intentUrl })
+    } catch {
+      // WhatsApp is not installed — hand the https URL to the OS instead of
+      // letting the WebView surface net::ERR_UNKNOWN_URL_SCHEME.
+      await AppLauncher.openUrl({ url: httpsUrl }).catch(() => {})
+    }
+    return
+  }
+
+  window.open(httpsUrl, '_blank', 'noopener,noreferrer')
 }
 
 export function smsDeepLink(phone: string, body?: string): string {

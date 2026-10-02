@@ -2,7 +2,7 @@
 
 import { Send, Phone, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatToE164, smsDeepLink, whatsappDeepLink } from '@/lib/contacts/vcard';
+import { formatToE164, smsDeepLink, openWhatsAppDirectly, whatsappGreeting } from '@/lib/contacts/vcard';
 
 interface ContactQuickActionsProps {
   /** Raw phone number, e.g. "+50499999999" (kept as the native tel: URI). */
@@ -21,16 +21,15 @@ export function ContactQuickActions({ phone, patientName, size = 'md', className
 
   return (
     <div className={cn('flex items-center gap-1', className)}>
-      <a
-        href={whatsappDeepLink(phone, patientName)}
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        type="button"
+        onClick={() => void openWhatsAppDirectly(phone, whatsappGreeting(patientName))}
         className={cn(btn, 'text-emerald-500 hover:bg-emerald-500/10')}
         title={`Abrir WhatsApp con ${patientName || 'el paciente'}`}
         aria-label="Abrir WhatsApp"
       >
         <Send size={size === 'sm' ? 13 : 16} />
-      </a>
+      </button>
       <a
         href={`tel:${formatToE164(phone, '+504')}`}
         className={cn(btn, 'text-blue-500 hover:bg-blue-500/10')}
