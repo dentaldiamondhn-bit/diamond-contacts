@@ -21,10 +21,12 @@ import {
   sortContacts,
 } from '@/lib/contacts/db';
 import {
+  countPendingSync,
   createLocalLabel,
   deleteLocalLabel,
   initContactsSync,
   permanentlyDeleteLocalContact,
+  purgeOtherUsersData,
   restoreLocalContact,
   softDeleteLocalContact,
   toggleFavoriteLocal,
@@ -90,20 +92,32 @@ export default function ContactosPage() {
 
   const userId = user?.id;
 
-  const contacts = useLiveQuery(() => queryContacts(filter, search), [filter, search]);
-  const pendingCount = useLiveQuery(() => db.contacts.where('synced').equals(0).count(), []);
+  // Every local query is keyed by userId: IndexedDB is per-origin, so an
+  // unscoped read shows the previous account's contacts to whoever signs in next.
+  const contacts = useLiveQuery(
+    () => (userId ? queryContacts(userId, filter, search) : Promise.resolve([])),
+    [userId, filter, search],
+  );
+  const pendingCount = useLiveQuery(() => countPendingSync(userId ?? ''), [userId]);
   const labels = useLiveQuery(() => (userId ? getLabels(userId) : Promise.resolve([])), [userId]);
-  const recentHistoryCount = useLiveQuery(() => getRecentMedicalHistoryCount(), []);
+  const recentHistoryCount = useLiveQuery(
+    () => getRecentMedicalHistoryCount(userId ?? ''),
+    [userId],
+  );
   const medical = useLiveQuery(
     () => (sheetContact ? getMedicalHistory(sheetContact.id) : Promise.resolve(undefined)),
     [sheetContact?.id],
   );
 
   const activeBase = useLiveQuery(
-    () => db.contacts.where('deleted').equals(0).toArray(),
-    [],
+    async () => (userId ? (await db.contacts.where('user_id').equals(userId).toArray()) : []),
+    [userId],
   );
-  const trashCount = useLiveQuery(() => db.contacts.where('deleted').equals(1).count(), []);
+  const trashCount = useLiveQuery(
+    async () =>
+      userId ? (await db.contacts.where('user_id').equals(userId).toArray()).filter((c) => c.deleted === 1).length : 0,
+    [userId],
+  );
 
   // Ask for native contacts permissions right at launch on the Android shell so
   // the first create/edit is never blocked by a late OS prompt.
@@ -113,9 +127,20 @@ export default function ContactosPage() {
 
   useEffect(() => {
     if (!userId) return;
-    const sync = initContactsSync(userId);
-    syncRef.current = sync;
-    return () => sync.unsubscribe();
+    let cancelled = false;
+    let detach: (() => void) | undefined;
+    // Evict any other account's local copy BEFORE the first read/query, so a
+    // device shared between clinics never renders another account's patients.
+    void purgeOtherUsersData(userId).finally(() => {
+      if (cancelled) return;
+      const sync = initContactsSync(userId);
+      syncRef.current = sync;
+      detach = sync.unsubscribe;
+    });
+    return () => {
+      cancelled = true;
+      detach?.();
+    };
   }, [userId]);
 
   // Column visibility loads from Supabase user_preferences (page_preferences.contactos).

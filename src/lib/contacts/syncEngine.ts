@@ -3,6 +3,7 @@ import { formatToE164 } from './vcard'
 import { deleteMirroredNativeContact, mirrorLocalContact } from '../../services/nativeContactsService'
 import {
   db,
+  getContactIdsForUser,
   newLocalId,
   LABEL_COLORS,
   type LocalContact,
@@ -247,7 +248,12 @@ async function pushContactJunctions(contactId: string, labelIds: string[]): Prom
 }
 
 async function runPushLocalChanges(userId: string): Promise<number> {
-  const unsynced = await db.contacts.where('synced').equals(0).toArray()
+  // Scoped by user_id on purpose: IndexedDB survives sign-out, so an unscoped
+  // `where('synced')` sweep would upload (and resurrect) the previous account's
+  // pending rows from whichever device is now signed in.
+  const unsynced = (await db.contacts.where('user_id').equals(userId).toArray()).filter(
+    (c) => c.synced === 0,
+  )
   let pushed = 0
 
   for (const contact of unsynced) {
@@ -316,7 +322,7 @@ async function runPushLocalChanges(userId: string): Promise<number> {
   }
 
   const labelsPushed = await pushLabels(userId)
-  const historyPushed = await pushMedicalHistories()
+  const historyPushed = await pushMedicalHistories(userId)
   return pushed + labelsPushed + historyPushed
 }
 
@@ -341,8 +347,12 @@ export function pushLocalChanges(userId: string): Promise<number> {
 // MEDICAL HISTORY sync (1:1 summary per contact)
 // ---------------------------------------------------------------------------
 
-async function pushMedicalHistories(): Promise<number> {
-  const unsynced = await db.medicalHistories.where('synced').equals(0).toArray()
+async function pushMedicalHistories(userId: string): Promise<number> {
+  // Histories carry no user_id of their own; ownership comes from the contact
+  // row, so only push histories whose contact belongs to the signed-in account.
+  const owned = new Set(await getContactIdsForUser(userId))
+  const all = await db.medicalHistories.where('synced').equals(0).toArray()
+  const unsynced = all.filter((h) => owned.has(h.contactId))
   let pushed = 0
   for (const h of unsynced) {
     try {
@@ -883,6 +893,51 @@ async function runDeleteLocalLabel(userId: string, id: string): Promise<void> {
   void pushLocalChanges(userId)
 }
 
-export async function countPendingSync(): Promise<number> {
-  return db.contacts.where('synced').equals(0).count()
+export async function countPendingSync(userId: string): Promise<number> {
+  if (!userId) return 0
+  const rows = await db.contacts.where('user_id').equals(userId).toArray()
+  return rows.filter((c) => c.synced === 0).length
+}
+
+/**
+ * Removes every OTHER account's rows from this device's IndexedDB.
+ *
+ * Reading scoped (see queryContacts) stops accounts from seeing each other, but
+ * IndexedDB is per-origin: without this, the signed-out account's patient data
+ * would sit at rest on the device — readable from devtools and recoverable by
+ * anyone with the WebView's storage. Called whenever a user id resolves, so an
+ * account switch evicts the previous account locally (it simply re-pulls from
+ * Supabase next time).
+ */
+export async function purgeOtherUsersData(activeUserId: string): Promise<number> {
+  if (!activeUserId) return 0
+
+  const foreignContacts = (await db.contacts.toArray()).filter(
+    (c) => c.user_id !== activeUserId,
+  )
+  if (foreignContacts.length === 0) {
+    // Still sweep orphan histories/mirrors left behind by older builds.
+    const owned = new Set(await getContactIdsForUser(activeUserId))
+    const orphanHistories = (await db.medicalHistories.toArray()).filter(
+      (h) => !owned.has(h.contactId),
+    )
+    if (orphanHistories.length) await db.medicalHistories.bulkDelete(orphanHistories.map((h) => h.contactId));
+    return 0
+  }
+
+  await db.transaction('rw', db.contacts, db.labels, db.medicalHistories, db.nativeMirrors, async () => {
+    for (const c of foreignContacts) {
+      await db.nativeMirrors.delete(c.id)
+      await db.medicalHistories.delete(c.id)
+    }
+    await db.contacts.bulkDelete(foreignContacts.map((c) => c.id))
+
+    const foreignLabels = (await db.labels.toArray()).filter((l) => l.user_id !== activeUserId)
+    if (foreignLabels.length) await db.labels.bulkDelete(foreignLabels.map((l) => l.id))
+  })
+
+  console.info(
+    `[sync] purga local: ${foreignContacts.length} contacto(s) de otra(s) cuenta(s) eliminados de este dispositivo`,
+  )
+  return foreignContacts.length
 }
