@@ -410,8 +410,6 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
   const junctionRows = (Array.isArray(junctionsRes.data) ? junctionsRes.data : []) as RemoteJunctionRow[]
   const remoteIds = new Set(rows.map((r) => r.id))
 
-  await reconcileMedicalHistories(userId, rows)
-
   // Reconcile labels
   const junctionByContact = new Map<string, string[]>()
   for (const j of junctionRows) {
@@ -462,6 +460,14 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
     if (local.synced === 1 && !remoteIds.has(local.id) && local.deleted === 0) {
       await db.contacts.update(local.id, { deleted: 1, deleted_at: new Date().toISOString() })
     }
+  }
+
+  // Reconcile medical histories LAST and best-effort: a failure here (e.g. a
+  // column missing from the deployed schema) must never abort the contact pull.
+  try {
+    await reconcileMedicalHistories(userId, rows)
+  } catch (err) {
+    console.warn('[sync] reconciliación de historiales clínicos fallida (se reintentará):', err)
   }
 
   return reconciled
@@ -529,6 +535,10 @@ export function subscribeToRealtimeSync(
 ): { channel: ReturnType<typeof supabase.channel>; unsubscribe: () => void } {
   const handleChange = () => scheduleRealtimePull(userId, onChange)
 
+  // Contacts changes are the critical cross-device path: keep them on their OWN
+  // channel so a failing bind on an auxiliary table (e.g. patient_medical_history
+  // subscribed via a user_id column that a partially-applied migration left out)
+  // can never silence contact events for the whole socket.
   const channel = supabase
     .channel('contacts_sync')
     .on(
@@ -536,19 +546,21 @@ export function subscribeToRealtimeSync(
       { event: '*', schema: 'public', table: 'contacts', filter: `user_id=eq.${userId}` },
       handleChange,
     )
-    // Medical history events are filtered at the socket level via the
-    // denormalized user_id column (see migration 20260926000000) so other
-    // clinics' history updates never reach this client's connection.
+    .subscribe()
+
+  // Auxiliary tables on a SECOND channel: medical history + etiquetas + their
+  // junction. The history is filtered at the socket level through the
+  // denormalized user_id column (migration 20260926000000) so other clinics'
+  // history updates never reach this client's connection; the junction carries
+  // its own denormalized user_id (migration 20261001) for the same reason. If a
+  // bind here errors, only auxiliary live updates are lost — never contacts.
+  const auxChannel = supabase
+    .channel('contacts_sync_aux')
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'patient_medical_history', filter: `user_id=eq.${userId}` },
       handleChange,
     )
-    // Etiquetas push live too (migration 20261001 wires contact_labels +
-    // contact_label_junction into supabase_realtime with REPLICA IDENTITY FULL).
-    // The junction has a denormalized user_id so this socket filter keeps other
-    // clinics' junction changes off this client's connection (same pattern as
-    // patient_medical_history).
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'contact_labels', filter: `user_id=eq.${userId}` },
@@ -569,6 +581,7 @@ export function subscribeToRealtimeSync(
         debounceTimer = null
       }
       supabase.removeChannel(channel)
+      supabase.removeChannel(auxChannel)
     },
   }
 }
