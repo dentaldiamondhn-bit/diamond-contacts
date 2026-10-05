@@ -15,6 +15,18 @@ import {
   type EmailType,
 } from './db'
 
+/**
+ * Local cross-account purge is opt-in and OFF by default.
+ *
+ * Deleting another account's rows from this device is irreversible, and until
+ * the Supabase backup is restored it can destroy the only surviving copy of a
+ * clinic's contacts. So there is deliberately NO `NODE_ENV === 'production'`
+ * shortcut here: a production build must arm this explicitly via
+ * `NEXT_PUBLIC_ENABLE_PURGE=1`.
+ */
+const PURGE_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_PURGE === '1' || process.env.ENABLE_PURGE === '1'
+
 // ---------------------------------------------------------------------------
 // SINGLE-FLIGHT SYNC LOCK
 // ---------------------------------------------------------------------------
@@ -911,6 +923,12 @@ export async function countPendingSync(userId: string): Promise<number> {
  */
 export async function purgeOtherUsersData(activeUserId: string): Promise<number> {
   if (!activeUserId) return 0
+  if (!PURGE_ENABLED) {
+    console.warn(
+      '[sync] purgeOtherUsersData: deshabilitado (activa con NEXT_PUBLIC_ENABLE_PURGE=1 en producción/preview mientras se recupera el backup de Supabase)',
+    )
+    return 0
+  }
 
   const foreignContacts = (await db.contacts.toArray()).filter(
     (c) => c.user_id !== activeUserId,

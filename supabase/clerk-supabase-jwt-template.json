@@ -1,0 +1,6 @@
+{
+  "aud": "authenticated",
+  "role": "authenticated",
+  "user_id": "{{user.id}}",
+  "email": "{{user.primary_email_address}}"
+}
