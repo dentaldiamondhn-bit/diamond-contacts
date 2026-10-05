@@ -526,8 +526,15 @@ async function reconcileMedicalHistories(userId: string, rows: RemoteContactRow[
   }
 
   // Drop local histories whose contact is gone or whose server row was deleted.
+  //
+  // Restricted to the contacts this account owns: `localHistories` covers the
+  // whole IndexedDB, which is per-origin and survives sign-out, so an unscoped
+  // loop would delete the previous account's synced histories the first time
+  // this account pulls — silent data loss for whoever signs in next.
+  const ownedContactIds = new Set(await getContactIdsForUser(userId))
   const localHistories = await db.medicalHistories.toArray()
   for (const local of localHistories) {
+    if (!ownedContactIds.has(local.contactId)) continue
     const stillLinked = remoteContactIds.has(local.contactId)
     if (local.synced === 1 && (!stillLinked || !remoteHistories.has(local.contactId))) {
       await db.medicalHistories.delete(local.contactId)
