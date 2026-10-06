@@ -340,8 +340,8 @@ export function ContactSidebar({
             {isOnline ? (
               <>
                 <Wifi size={13} className="text-emerald-500" />
-                <span className={pendingCount > 0 ? 'text-zinc-500 dark:text-zinc-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                  {pendingCount > 0 ? `Sincronizando… ${pendingCount}` : 'Sincronizado'}
+                <span className={pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                  {pendingCount > 0 ? 'Cambios guardados localmente (Pendientes de sincronizar)' : 'Sincronizado'}
                 </span>
               </>
             ) : (

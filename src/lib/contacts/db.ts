@@ -89,6 +89,24 @@ export interface NativeMirror {
   updatedAt: string
 }
 
+export type OutboxAction = 'CREATE' | 'UPDATE' | 'DELETE'
+
+/**
+ * A mutation that could not reach Supabase (offline, or a failed network push).
+ *
+ * `payload` is kept for diagnostics/telemetry only: the replay in
+ * `flushOfflineOutbox` re-reads the CURRENT local row and runs it through the
+ * normal push engine, so the authoritative state is IndexedDB, never this copy.
+ */
+export interface OutboxItem {
+  id?: number
+  contact_id: string
+  action: OutboxAction
+  payload: unknown
+  user_id: string
+  created_at: number
+}
+
 /** Window (days) used by the "Historiales Recientes" filter. */
 export const RECENT_HISTORY_DAYS = 60
 
@@ -97,6 +115,7 @@ class ContactsDatabase extends Dexie {
   labels!: Table<LocalLabel, string>
   medicalHistories!: Table<MedicalHistory, string>
   nativeMirrors!: Table<NativeMirror, string>
+  offlineOutbox!: Table<OutboxItem, number>
 
   constructor() {
     super('ClinicContactsDB')
@@ -114,6 +133,13 @@ class ContactsDatabase extends Dexie {
       labels: 'id, user_id, name',
       medicalHistories: 'contactId, updatedAt, synced',
       nativeMirrors: 'appContactId, phone',
+    })
+    this.version(4).stores({
+      contacts: 'id, user_id, first_name, last_name, synced, deleted, updated_at, updated_at_sync',
+      labels: 'id, user_id, name',
+      medicalHistories: 'contactId, updatedAt, synced, deleted',
+      nativeMirrors: 'appContactId, phone',
+      offlineOutbox: '++id, contact_id, action, user_id, created_at',
     })
   }
 }

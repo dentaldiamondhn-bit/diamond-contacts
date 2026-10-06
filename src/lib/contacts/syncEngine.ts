@@ -46,6 +46,35 @@ function withSyncLock<T>(fn: () => Promise<T>): Promise<T> {
   return run
 }
 
+interface OutboxFlushOptions {
+  skipPull?: boolean
+}
+
+/**
+ * Enqueue a local mutation into the offline outbox.
+ *
+ * Write failures (storage quota, IndexedDB errors) are logged but do not
+ * crash the originating call: the in-memory change already occurred, so we
+ * can still try to push if the browser becomes online. If we cannot even
+ * persist the outbox row, the caller proceeds and the normal synced:0 flow
+ * still covers it.
+ */
+async function enqueueOutbox(
+  item: Omit<import('@/lib/contacts/db').OutboxItem, 'id' | 'created_at'> & {
+    created_at?: number
+  },
+): Promise<void> {
+  try {
+    await db.offlineOutbox.add({
+      ...item,
+      created_at: item.created_at ?? Date.now(),
+      payload: item.payload ?? null,
+    } as import('@/lib/contacts/db').OutboxItem)
+  } catch (err) {
+    console.warn('[Offline Engine] No se pudo encolar mutación:', err)
+  }
+}
+
 interface RemotePhoneRow {
   id: string
   type: PhoneType | string
@@ -353,6 +382,39 @@ async function replaceRemoteRows(
 
 export function pushLocalChanges(userId: string): Promise<number> {
   return withSyncLock(() => runPushLocalChanges(userId))
+}
+
+export async function flushOfflineOutbox(userId: string, opts?: OutboxFlushOptions): Promise<number> {
+  return withSyncLock(async () => {
+    if (!userId) return 0
+    const items = await db.offlineOutbox.where('user_id').equals(userId).sortBy('created_at')
+    let processed = 0
+    for (const item of items) {
+      try {
+        const contact = await db.contacts.get(item.contact_id)
+        // Re-apply/replay by driving the normal push for this contact state.
+        // If contact is hard-deleted (not present in Dexie but action DELETE),
+        // runPushLocalChanges will still see synced:0 rows; but contact no longer exists.
+        // However, soft DELETE sets synced:0 + deleted:1; permanent delete clears from db.
+        // For replay, just run a full push batch for this user — it's already scoped.
+        // But to minimize work: trigger runPushLocalChanges which covers unsynced contacts/labels/histories.
+        await runPushLocalChanges(userId)
+        await db.offlineOutbox.delete(item.id as number)
+        processed += 1
+      } catch (err) {
+        console.error('[Offline Engine] Error al vaciar outbox:', err)
+        break // stop, retry later
+      }
+    }
+    if (processed > 0 && !opts?.skipPull) {
+      try {
+        await pullRemoteContacts(userId)
+      } catch (err) {
+        console.error('[Offline Engine] pull post-outbox fallida:', err)
+      }
+    }
+    return processed
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -680,7 +742,8 @@ export function initContactsSync(userId: string, onChange?: () => void): Contact
     .finally(notify)
 
   const handleOnline = () => {
-    void pushLocalChanges(userId)
+    void flushOfflineOutbox(userId)
+      .then(() => pushLocalChanges(userId))
       .then(() => pullRemoteContacts(userId))
       .catch((err) => console.error('[sync] sincronización online fallida:', err))
       .finally(notify)
@@ -695,7 +758,7 @@ export function initContactsSync(userId: string, onChange?: () => void): Contact
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('focus', handleOnline)
     },
-    syncNow: () => pushLocalChanges(userId).then((n) => pullRemoteContacts(userId).then(() => n)),
+    syncNow: () => flushOfflineOutbox(userId).then((n) => pushLocalChanges(userId).then((p) => p + n)).then((n) => pullRemoteContacts(userId).then(() => n)),
   }
 }
 
@@ -758,6 +821,12 @@ export async function createLocalContact(userId: string, input: NewContactInput)
 
   await db.contacts.add(contact)
   void mirrorLocalContact(contact)
+  await enqueueOutbox({
+    contact_id: id,
+    action: 'CREATE',
+    payload: { id },
+    user_id: userId,
+  })
   void pushLocalChanges(userId)
   return contact
 }
@@ -802,6 +871,19 @@ export async function updateLocalContact(id: string, patch: UpdateContactPatch):
   if (updated) {
     void mirrorLocalContact(updated)
   }
+  await enqueueOutbox({
+    contact_id: id,
+    action: 'UPDATE',
+    payload: { id },
+    user_id: existing.user_id,
+  })
+  void pushLocalChanges(existing.user_id)
+  await enqueueOutbox({
+    contact_id: id,
+    action: 'UPDATE',
+    payload: { id },
+    user_id: existing.user_id,
+  })
   void pushLocalChanges(existing.user_id)
 }
 
@@ -813,6 +895,12 @@ export async function toggleFavoriteLocal(id: string): Promise<void> {
     version: (existing.version ?? 1) + 1,
     updated_at: new Date().toISOString(),
     synced: 0,
+  })
+  await enqueueOutbox({
+    contact_id: id,
+    action: 'UPDATE',
+    payload: { id },
+    user_id: existing.user_id,
   })
   void pushLocalChanges(existing.user_id)
 }
@@ -828,6 +916,12 @@ export async function softDeleteLocalContact(id: string): Promise<void> {
     synced: 0,
   })
   void deleteMirroredNativeContact(existing)
+  await enqueueOutbox({
+    contact_id: id,
+    action: 'DELETE',
+    payload: { id },
+    user_id: existing.user_id,
+  })
   void pushLocalChanges(existing.user_id)
 }
 
@@ -840,6 +934,12 @@ export async function restoreLocalContact(id: string): Promise<void> {
     version: (existing.version ?? 1) + 1,
     updated_at: new Date().toISOString(),
     synced: 0,
+  })
+  await enqueueOutbox({
+    contact_id: id,
+    action: 'UPDATE',
+    payload: { id },
+    user_id: existing.user_id,
   })
   void pushLocalChanges(existing.user_id)
 }
@@ -986,7 +1086,9 @@ async function runDeleteLocalLabel(userId: string, id: string): Promise<void> {
 export async function countPendingSync(userId: string): Promise<number> {
   if (!userId) return 0
   const rows = await db.contacts.where('user_id').equals(userId).toArray()
-  return rows.filter((c) => c.synced === 0).length
+  const unsynced = rows.filter((c) => c.synced === 0).length
+  const outbox = await db.offlineOutbox.where('user_id').equals(userId).count()
+  return unsynced + outbox
 }
 
 /**
