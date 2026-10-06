@@ -61,7 +61,13 @@ export function registerSupabaseTokenGetter(getter: SupabaseTokenGetter | null):
   tokenBridge.__diamondSupabaseTokenGetter = getter
 }
 
-async function getSupabaseAccessToken(): Promise<string | null> {
+/**
+ * Resolve the current Clerk token, or `null` when there is no bridge/not signed
+ * in. Exported so sync can tell an authorized empty result ("the account really
+ * has no rows") apart from an anonymous one ("RLS filtered everything"), which
+ * must never be treated as a remote deletion.
+ */
+export async function getSupabaseAccessToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null
   const getter = tokenBridge.__diamondSupabaseTokenGetter
   if (!getter) return null

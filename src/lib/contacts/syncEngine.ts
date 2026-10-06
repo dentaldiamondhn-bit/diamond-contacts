@@ -1,4 +1,4 @@
-import { supabase } from '../supabase'
+import { getSupabaseAccessToken, supabase } from '../supabase'
 import { formatToE164 } from './vcard'
 import { deleteMirroredNativeContact, mirrorLocalContact } from '../../services/nativeContactsService'
 import {
@@ -415,6 +415,12 @@ export function pullRemoteContacts(userId: string): Promise<number> {
 }
 
 async function runPullRemoteContacts(userId: string): Promise<number> {
+  // Whether this pull actually carried a Clerk token. Without one the request
+  // runs as `anon` and RLS returns an empty set, which is indistinguishable from
+  // "the account is empty". The destructive half of the reconcile (tombstoning
+  // local rows) is therefore only allowed on an authorized pull, so a missing or
+  // expired token can never wipe a device.
+  const authorized = Boolean(await getSupabaseAccessToken())
   const [contactsRes, labelsRes] = await Promise.all([
     supabase
       .from('contacts')
@@ -467,9 +473,14 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
     reconciled += 1
   }
   const localLabels = await db.labels.where('user_id').equals(userId).toArray()
-  for (const local of localLabels) {
-    if (local.synced === 1 && !remoteLabelIds.has(local.id)) {
-      await db.labels.delete(local.id)
+  // Same guard as the contact tombstone below: an empty label result must not be
+  // read as "the user deleted all their labels", which would strip labels off
+  // every device after a single unauthorized pull.
+  if (authorized && (labelRows.length > 0 || localLabels.length === 0)) {
+    for (const local of localLabels) {
+      if (local.synced === 1 && !remoteLabelIds.has(local.id)) {
+        await db.labels.delete(local.id)
+      }
     }
   }
 
@@ -491,17 +502,31 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
   }
 
   // Tombstone any synced local rows that no longer exist remotely.
+  //
+  // "No longer exists remotely" is only knowable when the server actually
+  // returned rows. An empty result is indistinguishable from "RLS filtered
+  // everything out" or "no Clerk token was attached", and acting on it used to
+  // flip every local contact into the trash — devices that pulled while
+  // unauthorized silently went to 0 contacts. If the server has nothing and we
+  // still hold data, skip the destructive half of the reconcile and retry later.
   const localRows = await db.contacts.where('user_id').equals(userId).toArray()
-  for (const local of localRows) {
-    if (local.synced === 1 && !remoteIds.has(local.id) && local.deleted === 0) {
-      await db.contacts.update(local.id, { deleted: 1, deleted_at: new Date().toISOString() })
+  if (authorized && (rows.length > 0 || localRows.length === 0)) {
+    for (const local of localRows) {
+      if (local.synced === 1 && !remoteIds.has(local.id) && local.deleted === 0) {
+        await db.contacts.update(local.id, { deleted: 1, deleted_at: new Date().toISOString() })
+      }
     }
+  } else {
+    console.warn(
+      '[sync] pull devolvió 0 contactos con %d locales: se omite la reconciliación de borrados (posible RLS/sin token)',
+      localRows.length,
+    )
   }
 
   // Reconcile medical histories LAST and best-effort: a failure here (e.g. a
   // column missing from the deployed schema) must never abort the contact pull.
   try {
-    await reconcileMedicalHistories(userId, rows)
+    await reconcileMedicalHistories(userId, rows, authorized && (rows.length > 0 || localRows.length === 0))
   } catch (err) {
     console.warn('[sync] reconciliación de historiales clínicos fallida (se reintentará):', err)
   }
@@ -509,7 +534,11 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
   return reconciled
 }
 
-async function reconcileMedicalHistories(userId: string, rows: RemoteContactRow[]): Promise<void> {
+async function reconcileMedicalHistories(
+  userId: string,
+  rows: RemoteContactRow[],
+  allowDeletions: boolean,
+): Promise<void> {
   const contactIds = rows.map((r) => r.id)
   let histories: RemoteHistoryRow[] = []
   if (contactIds.length > 0) {
@@ -547,11 +576,15 @@ async function reconcileMedicalHistories(userId: string, rows: RemoteContactRow[
   // this account pulls — silent data loss for whoever signs in next.
   const ownedContactIds = new Set(await getContactIdsForUser(userId))
   const localHistories = await db.medicalHistories.toArray()
-  for (const local of localHistories) {
-    if (!ownedContactIds.has(local.contactId)) continue
-    const stillLinked = remoteContactIds.has(local.contactId)
-    if (local.synced === 1 && (!stillLinked || !remoteHistories.has(local.contactId))) {
-      await db.medicalHistories.delete(local.contactId)
+  // Same empty-result guard as the contact tombstone: only drop local histories
+  // when the pull was authorized and actually returned rows (or we hold none).
+  if (allowDeletions) {
+    for (const local of localHistories) {
+      if (!ownedContactIds.has(local.contactId)) continue
+      const stillLinked = remoteContactIds.has(local.contactId)
+      if (local.synced === 1 && (!stillLinked || !remoteHistories.has(local.contactId))) {
+        await db.medicalHistories.delete(local.contactId)
+      }
     }
   }
 }
