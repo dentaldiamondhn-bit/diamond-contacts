@@ -37,7 +37,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel, MedicalHistory } from '@/lib/contacts/db';
 import { LABEL_COLORS, formatDate, fullName, primaryPhone } from '@/lib/contacts/db';
-import { sharePatientContact } from '@/lib/contacts/vcard';
+import { formatPhoneDisplay, sharePatientContact } from '@/lib/contacts/vcard';
 import { meaningfulMedicalTags } from '@/lib/contacts/patientLink';
 import { PatientLinkModal } from './PatientLinkModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
@@ -395,7 +395,7 @@ export function ContactDetailSheet({
                             Acciones rápidas
                           </p>
                           <p className="mt-0.5 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                            {mainPhone.phone_number}
+                            {formatPhoneDisplay(mainPhone.phone_number)}
                           </p>
                         </div>
                         <div className="flex items-center gap-1">
@@ -424,7 +424,7 @@ export function ContactDetailSheet({
                       {contact.phones.map((p) => (
                         <div key={p.id} className="flex items-center gap-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200">
                           <Phone size={14} className="text-zinc-400 shrink-0" />
-                          <span className="font-medium">{p.phone_number}</span>
+                          <span className="font-medium">{formatPhoneDisplay(p.phone_number)}</span>
                           <span className="text-xs text-zinc-400 uppercase">{p.type}</span>
                         </div>
                       ))}

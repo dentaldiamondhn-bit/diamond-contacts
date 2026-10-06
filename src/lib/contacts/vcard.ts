@@ -62,6 +62,26 @@ export function formatToE164(phone: string | null | undefined, defaultCountryCod
   return `+${digits}`
 }
 
+/**
+ * Human-friendly rendering of a phone number for the UI, e.g.
+ * "+50499999999" -> "+504 9999-9999". Honduras (country code 504 + 8 national
+ * digits) is grouped XXXX-XXXX; other numbers are left as E.164. Display only —
+ * dialing and vCard export keep using formatToE164.
+ */
+export function formatPhoneDisplay(phone: string | null | undefined, defaultCountryCode = '+504'): string {
+  const raw = (phone ?? '').trim()
+  if (!raw) return ''
+  const e164 = formatToE164(raw, defaultCountryCode)
+  if (!e164) return raw
+  const digits = e164.slice(1)
+  // Honduras: +504 followed by exactly 8 national digits.
+  if (digits.startsWith('504') && digits.length === 11) {
+    const national = digits.slice(3)
+    return `+504 ${national.slice(0, 4)}-${national.slice(4)}`
+  }
+  return e164
+}
+
 const VCARD_MAX_LINE = 75
 
 /**

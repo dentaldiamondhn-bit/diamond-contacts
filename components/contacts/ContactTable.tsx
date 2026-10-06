@@ -26,6 +26,7 @@ import { formatDate, fullName, primaryEmail, primaryPhone } from '@/lib/contacts
 import { COLUMNS, SORTABLE_COLUMN_KEYS, type ContactColumn } from './columns';
 import { ContactQuickActions } from './ContactQuickActions';
 import { ContactAvatar } from './ContactAvatar';
+import { formatPhoneDisplay } from '@/lib/contacts/vcard';
 
 interface ContactTableProps {
   contacts: LocalContact[];
@@ -278,7 +279,7 @@ export function ContactTable({
                     {phone ? (
                       <div className="flex items-center gap-1.5">
                         <Phone size={13} className="text-zinc-400 shrink-0" />
-                        <span className="text-sm text-zinc-600 dark:text-zinc-300">{phone.phone_number}</span>
+                        <span className="text-sm text-zinc-600 dark:text-zinc-300">{formatPhoneDisplay(phone.phone_number)}</span>
                         <span className="hidden group-hover:inline-flex items-center ml-0.5">
                           <ContactQuickActions phone={phone.phone_number} patientName={name} size="sm" />
                         </span>
