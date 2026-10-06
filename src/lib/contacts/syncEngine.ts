@@ -851,6 +851,30 @@ export function permanentlyDeleteLocalContact(id: string): Promise<void> {
 async function runPermanentDelete(id: string): Promise<void> {
   const existing = await db.contacts.get(id)
   if (!existing) return
+
+  // Archive a full snapshot BEFORE the hard delete. The cascade below removes
+  // the child rows and the medical history, so without this the delete is
+  // irreversible and there is no other "deleted contacts" store to recover
+  // from. Best effort: an archive failure must not block the user's delete.
+  try {
+    const token = await getSupabaseAccessToken()
+    if (token) {
+      const history = await db.medicalHistories.get(id)
+      await supabase
+        .from('deleted_contacts')
+        .insert({
+          id: existing.id,
+          user_id: existing.user_id,
+          full_name: [existing.first_name, existing.last_name].filter(Boolean).join(' ').trim() || null,
+          deleted_at: existing.deleted_at ?? null,
+          snapshot: { contact: existing, medical_history: history ?? null },
+        })
+        .throwOnError()
+    }
+  } catch (err) {
+    console.error('[sync] no se pudo archivar el contacto eliminado en deleted_contacts:', err)
+  }
+
   // Child rows (phones, emails, junctions) and the 1:1 medical history clean
   // up via ON DELETE CASCADE, so one server call is enough.
   await supabase.from('contacts').delete().eq('id', id).throwOnError()
