@@ -477,6 +477,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
                 isTrash={isTrash}
                 loading
                 labelMap={labelMap}
+                isOnline={isOnline}
                 onToggleSort={toggleSort}
                 onToggleSelectAll={toggleSelectAll}
                 onToggleSelect={toggleSelect}
@@ -511,6 +512,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
                 isTrash={isTrash}
                 loading={false}
                 labelMap={labelMap}
+                isOnline={isOnline}
                 onToggleSort={toggleSort}
                 onToggleSelectAll={toggleSelectAll}
                 onToggleSelect={toggleSelect}

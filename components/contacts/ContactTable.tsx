@@ -19,7 +19,12 @@ import {
   Star,
   StarOff,
   Trash2,
+  Cloud,
+  CloudOff,
+  CheckCircle2,
 } from 'lucide-react';
+import { db } from '@/lib/contacts/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { cn } from '@/lib/utils';
 import type { ContactSort, ContactSortKey, LocalContact, LocalLabel } from '@/lib/contacts/db';
 import { formatDate, fullName, primaryEmail, primaryPhone } from '@/lib/contacts/db';
@@ -36,6 +41,7 @@ interface ContactTableProps {
   isTrash: boolean;
   loading: boolean;
   labelMap: Map<string, LocalLabel>;
+  isOnline?: boolean;
   onToggleSort: (key: ContactSortKey) => void;
   onToggleSelectAll: () => void;
   onToggleSelect: (id: string) => void;
@@ -96,6 +102,7 @@ export function ContactTable({
   isTrash,
   loading,
   labelMap,
+  isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true,
   onToggleSort,
   onToggleSelectAll,
   onToggleSelect,
@@ -113,15 +120,22 @@ export function ContactTable({
   onRestoreSelected,
   onPurgeSelected,
 }: ContactTableProps) {
-  const allSelected = contacts.length > 0 && contacts.every((c) => selection.has(c.id));
   const selectionCount = selection.size;
+  const allSelected = selectionCount > 0 && contacts.every((c) => selection.has(c.id));
+  const nameVisible = columnVisibility.has('name');
   const phoneVisible = columnVisibility.has('phone');
   const emailVisible = columnVisibility.has('email');
   const labelsVisible = columnVisibility.has('labels');
   const expedienteVisible = columnVisibility.has('expediente');
   const updatedVisible = columnVisibility.has('updated');
+  const statusVisible = columnVisibility.has('status');
   const cellCls = (visible: boolean) => cn('py-3 pr-4', visible ? 'hidden sm:table-cell' : 'hidden');
   const expedienteCellCls = (visible: boolean) => cn('py-3 pr-4', visible ? 'hidden md:table-cell' : 'hidden');
+
+  const pendingContactIds = useLiveQuery(
+    () => db.offlineOutbox.toArray().then((items) => new Set(items.map((i) => i.contact_id))),
+    [],
+  );
 
   if (loading) {
     return (
@@ -296,6 +310,15 @@ export function ContactTable({
                       </span>
                     ) : (
                       <span className="text-zinc-300 dark:text-zinc-600">—</span>
+                    )}
+                  </td>
+                  <td className={cellCls(statusVisible)} onClick={(e) => e.stopPropagation()}>
+                    {contact.synced === 1 && !pendingContactIds?.has(contact.id) ? (
+                      <CheckCircle2 size={14} className="text-emerald-500" aria-label="Sincronizado (dispositivo + nube)" />
+                    ) : isOnline ? (
+                      <Cloud size={14} className="text-amber-500" aria-label="Cambios guardados localmente (pendientes de sincronizar)" />
+                    ) : (
+                      <CloudOff size={14} className="text-zinc-400 dark:text-zinc-500" aria-label="Sin conexión — cambios guardados localmente" />
                     )}
                   </td>
                   <td className={cellCls(labelsVisible)} onClick={(e) => e.stopPropagation()}>
