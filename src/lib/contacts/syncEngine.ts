@@ -415,20 +415,34 @@ export function pullRemoteContacts(userId: string): Promise<number> {
 }
 
 async function runPullRemoteContacts(userId: string): Promise<number> {
-  const [contactsRes, labelsRes, junctionsRes] = await Promise.all([
+  const [contactsRes, labelsRes] = await Promise.all([
     supabase
       .from('contacts')
       .select('*, contact_phones(*), contact_emails(*)')
       .eq('user_id', userId)
       .limit(2000),
     supabase.from('contact_labels').select('*').eq('user_id', userId),
-    supabase.from('contact_label_junction').select('contact_id, label_id'),
   ])
 
   if (contactsRes.error) throw new Error(contactsRes.error.message)
+  if (labelsRes.error) throw new Error(labelsRes.error.message)
 
   const rows = (Array.isArray(contactsRes.data) ? contactsRes.data : []) as RemoteContactRow[]
   const labelRows = (Array.isArray(labelsRes.data) ? labelsRes.data : []) as RemoteLabelRow[]
+
+  // Junctions are fetched AFTER labels and filtered to this account's label ids.
+  // An unfiltered select here used to download every clinic's contact_id↔label_id
+  // mapping into the browser; once the strict RLS policies are live it would
+  // return zero rows instead and silently strip `label_ids` from every contact.
+  const ownLabelIds = labelRows.map((l) => l.id)
+  const junctionsRes = ownLabelIds.length
+    ? await supabase
+        .from('contact_label_junction')
+        .select('contact_id, label_id')
+        .in('label_id', ownLabelIds)
+    : { data: [], error: null }
+  if (junctionsRes.error) throw new Error(junctionsRes.error.message)
+
   const junctionRows = (Array.isArray(junctionsRes.data) ? junctionsRes.data : []) as RemoteJunctionRow[]
   const remoteIds = new Set(rows.map((r) => r.id))
 
