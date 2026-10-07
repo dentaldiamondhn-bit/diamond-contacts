@@ -100,6 +100,10 @@ public class NativeContactsBridge extends Plugin {
      * then the device's primary Google account, else null (device-local storage).
      */
     private Account getPrimaryGoogleAccount(android.content.Context context) {
+        return getTargetGoogleAccount(context);
+    }
+
+    private Account getTargetGoogleAccount(android.content.Context context) {
         AccountManager accountManager = AccountManager.get(context);
         Account[] google = accountManager.getAccountsByType("com.google");
         if (google.length == 0) {
@@ -119,15 +123,34 @@ public class NativeContactsBridge extends Plugin {
      * new/changed raw contacts up right away.
      */
     private void requestContactsSync() {
-        ContentResolver cr0 = getContext().getContentResolver();
-        cr0.notifyChange(ContactsContract.Contacts.CONTENT_URI, null, false);
-        Account target = getPrimaryGoogleAccount(getContext());
-        if (target != null) {
+        notifyNativeContactsChangedInternal();
+    }
+
+    @PluginMethod
+    public void notifyNativeContactsChanged(PluginCall call) {
+        try {
+            notifyNativeContactsChangedInternal();
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to broadcast contact change: " + e.getMessage());
+        }
+    }
+
+    private void notifyNativeContactsChangedInternal() {
+        android.content.Context context = getContext();
+        context.getContentResolver().notifyChange(
+                ContactsContract.Contacts.CONTENT_URI,
+                null,
+                false
+        );
+
+        Account targetAccount = getTargetGoogleAccount(context);
+        if (targetAccount != null) {
             try {
                 Bundle extras = new Bundle();
                 extras.putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true);
                 extras.putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true);
-                ContentResolver.requestSync(target, ContactsContract.AUTHORITY, extras);
+                ContentResolver.requestSync(targetAccount, ContactsContract.AUTHORITY, extras);
             } catch (SecurityException se) {
                 android.util.Log.w(TAG, "requestSync rejected: " + se.getMessage());
             }

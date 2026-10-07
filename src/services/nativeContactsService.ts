@@ -38,9 +38,10 @@ interface NativeBridgePlugin {
     accountType?: string | null;
     accountName?: string | null;
   }): Promise<{ processed: number; created: number; updated: number; failed: number }>;
+  notifyNativeContactsChanged(): Promise<void>;
 }
 
-const NativeBridge = registerPlugin<NativeBridgePlugin>('NativeContactsBridge');
+export const NativeContactsBridge = registerPlugin<NativeBridgePlugin>('NativeContactsBridge');
 
 function isBridgeAvailable(): boolean {
   if (!Capacitor.isNativePlatform()) return false;
@@ -143,7 +144,7 @@ export async function mirrorLocalContact(contact: MirrorableContact) {
   if (isBridgeAvailable()) {
     try {
       const mirror = await loadMirror(contact.id);
-      const result = await NativeBridge.upsertContact({
+      const result = await NativeContactsBridge.upsertContact({
         ...input,
         accountType: mirror?.accountType ?? null,
         accountName: mirror?.accountName ?? null,
@@ -191,7 +192,7 @@ export async function deleteMirroredNativeContact(contact: { id?: string; phones
     try {
       const phone = formatToE164(contact.phones?.[0]?.phone_number, '+504');
       const target = phone || (await loadMirror(contact.id))?.phone;
-      if (target) await NativeBridge.deleteByPhone({ phone: target });
+      if (target) await NativeContactsBridge.deleteByPhone({ phone: target });
       await db.nativeMirrors.delete(contact.id);
       clearNativeKeys(contact.id);
       return;
@@ -239,7 +240,7 @@ export async function syncAllToNative(contacts: MirrorableContact[]): Promise<Na
         pref = await loadMirror(c.id);
         if (pref) break;
       }
-      const result = await NativeBridge.syncAll({
+      const result = await NativeContactsBridge.syncAll({
         contacts: valid,
         accountType: pref?.accountType ?? null,
         accountName: pref?.accountName ?? null,
@@ -309,4 +310,17 @@ export async function syncContactToAndroidNative(contact: BridgeContact): Promis
     console.error('Error writing native contact:', err);
     return { contactId: null, synced: false };
   }
+}
+
+export async function notifyNativeContactsChanged(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+  if (isBridgeAvailable() && NativeContactsBridge.notifyNativeContactsChanged) {
+    await NativeContactsBridge.notifyNativeContactsChanged();
+    return;
+  }
+} catch (err) {
+  console.warn('[native] notifyNativeContactsChanged failed:', err);
+}
+
 }

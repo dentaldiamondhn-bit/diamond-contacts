@@ -1,6 +1,13 @@
 import { getSupabaseAccessToken, supabase } from '../supabase'
 import { formatToE164 } from './vcard'
-import { deleteMirroredNativeContact, mirrorLocalContact } from '../../services/nativeContactsService'
+import {
+  NativeContactsBridge,
+  notifyNativeContactsChanged,
+  deleteMirroredNativeContact,
+  mirrorLocalContact,
+  syncContactToAndroidNative,
+} from '../../services/nativeContactsService'
+import { Capacitor } from '@capacitor/core'
 import {
   db,
   getContactIdsForUser,
@@ -561,6 +568,47 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
     local.label_ids = junctionByContact.get(row.id) ?? []
     await db.contacts.put(local)
     reconciled += 1
+  }
+
+  // Sync reconciled remote contacts to native Android address book and notify system observers
+  if (Capacitor.isNativePlatform() && rows.length > 0) {
+    try {
+      for (const row of rows) {
+        const deletedAt = row.deleted_at
+        if (deletedAt) continue
+        const phones = Array.isArray(row.contact_phones) ? row.contact_phones : []
+        const emails = Array.isArray(row.contact_emails) ? row.contact_emails : []
+        const primaryPhone = phones.find((p) => p.is_primary) || phones[0]
+        const primaryEmail = emails.find((e) => e.is_primary) || emails[0]
+        if (!primaryPhone?.phone_number) continue
+        const givenName = row.first_name ?? ''
+        const familyName = row.last_name ?? ''
+        const fullName = `${givenName} ${familyName}`.trim()
+        const noteParts: string[] = []
+        if (row.notes) noteParts.push(row.notes)
+        if (row.company) noteParts.push(`Empresa: ${row.company}`)
+        if (row.job_title) noteParts.push(`Cargo: ${row.job_title}`)
+        if (row.address) noteParts.push(`Dirección: ${row.address}`)
+        if (row.dob) noteParts.push(`Nacimiento: ${row.dob}`)
+        const note = noteParts.join('\n') || undefined
+        try {
+          await syncContactToAndroidNative({
+            givenName,
+            familyName,
+            phone: formatToE164(primaryPhone.phone_number, '+504'),
+            e164: formatToE164(primaryPhone.phone_number, '+504'),
+            email: primaryEmail?.email ?? undefined,
+            note,
+          })
+        } catch (err) {
+          console.warn(`[sync] syncContactToAndroidNative falló para ${row.id}:`, err)
+        }
+      }
+      await notifyNativeContactsChanged()
+      console.log('[Sync Engine] Remote contacts pulled & Android OS notified for WhatsApp.')
+    } catch (err) {
+      console.warn('[sync] notificación nativa post-pull fallida:', err)
+    }
   }
 
   // Tombstone any synced local rows that no longer exist remotely.
