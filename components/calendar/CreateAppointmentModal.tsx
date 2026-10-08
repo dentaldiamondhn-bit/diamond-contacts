@@ -1,14 +1,20 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Check, CalendarPlus, MessageCircle, Search, UserRound, Users, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, CalendarPlus, MessageCircle, Search, UserRound, Users, X, Trash2 } from 'lucide-react';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalBody, ModalFooter } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/button';
 import { PROCEDURES, PROCEDURE_COLORS, NO_PROCEDURE_COLOR } from '@/lib/types-calendar';
-import { clinicDateKey, clinicClockTime } from '@/calendario/rbcAdapter';
+import {
+  clinicDateKey,
+  clinicClockTime,
+  clinicWallClockTimestamp,
+  addMinutesToTime,
+} from '@/calendario/rbcAdapter';
+import { TimeClockPicker } from './TimeClockPicker';
 import { useToast } from './Toast';
 import { openWhatsAppDirectly } from '@/lib/contacts/vcard';
 
@@ -57,10 +63,30 @@ function nextHalfHourSlot(now: string): string {
   return `${String(Math.floor(slot / 60) % 24).padStart(2, '0')}:${String(slot % 60).padStart(2, '0')}`;
 }
 
-function addMinutes(time: string, delta: number): string {
-  const [h = 0, m = 0] = time.split(':').map(Number);
-  const total = (h * 60 + m + delta) % (24 * 60);
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+const QUICK_DURATIONS = [
+  { label: '+15 min', minutes: 15 },
+  { label: '+30 min', minutes: 30 },
+  { label: '+45 min', minutes: 45 },
+  { label: '+1 hr', minutes: 60 },
+] as const;
+
+const REMINDER_OPTIONS = [
+  { value: 10, label: '10 min antes' },
+  { value: 15, label: '15 min antes' },
+  { value: 30, label: '30 min antes' },
+  { value: 60, label: '1 hora antes' },
+  { value: 120, label: '2 horas antes' },
+  { value: 1440, label: '1 día antes' },
+] as const;
+
+/** Smart default Recordatorios [10 min, 1 h, 1 día], minus any lead time whose fire instant is already in the past. */
+const DEFAULT_REMINDER_LEVELS = [10, 60, 1440];
+function smartDefaultReminders(date: string, startTime: string): number[] {
+  if (!date || !startTime) return [...DEFAULT_REMINDER_LEVELS];
+  const startMs = clinicWallClockTimestamp(date, startTime).getTime();
+  const nowMs = Date.now();
+  const future = DEFAULT_REMINDER_LEVELS.filter((min) => startMs - min * 60_000 > nowMs);
+  return future.length ? future : [10];
 }
 
 export function CreateAppointmentModal({
@@ -80,13 +106,20 @@ export function CreateAppointmentModal({
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('09:30');
   const [procedure, setProcedure] = useState('');
-  const [dentist, setDentist] = useState('');
   const [status, setStatus] = useState<'scheduled' | 'confirmed'>('scheduled');
   const [notes, setNotes] = useState('');
+  const [reminders, setReminders] = useState<number[]>([10]);
   const [submitting, setSubmitting] = useState(false);
   const [conflict, setConflict] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  // Auto-end (request): while armed, Fin follows Inicio by +30 min. Any manual
+  // Fin edit (dial or quick-duration chip) disarms it for the session.
+  const autoEndRef = useRef(true);
+  const sessionStartRef = useRef('');
+  // Once the user edits Recordatorios, stop re-deriving smart defaults.
+  const remindersTouchedRef = useRef(false);
 
   // patient search
   const [selectedPatient, setSelectedPatient] = useState<SearchResult | null>(null);
@@ -105,14 +138,18 @@ export function CreateAppointmentModal({
     if (!isOpen) return;
     const now = clinicClockTime();
     const start = nextHalfHourSlot(now);
+    const today = clinicDateKey();
     setTitle(`Cita - ${patientName}`.trim());
-    setDate(clinicDateKey());
+    setDate(today);
     setStartTime(start);
-    setEndTime(addMinutes(start, 30));
+    setEndTime(addMinutesToTime(start, 30));
+    autoEndRef.current = true;
+    sessionStartRef.current = start;
     setProcedure('');
-    setDentist('');
     setStatus('scheduled');
     setNotes('');
+    setReminders(smartDefaultReminders(today, start));
+    remindersTouchedRef.current = false;
     setSubmitting(false);
     setConflict(null);
     setError(null);
@@ -132,6 +169,35 @@ export function CreateAppointmentModal({
       .catch(() => [])
       .then((users) => setUserPool(users as DraftInvitee[]));
   }, [isOpen, patientName]);
+
+  // Auto-end sync: while auto-mode is armed, end follows start by +30 min. Once
+  // the user takes over Fin, only an ordering violation (end ≤ start) pushes it.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (sessionStartRef.current === startTime) return;
+    sessionStartRef.current = startTime;
+    const endInvalid = !endTime || endTime <= startTime;
+    if (autoEndRef.current || endInvalid) {
+      const next = addMinutesToTime(startTime, 30);
+      if (next !== endTime) setEndTime(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startTime, isOpen]);
+
+  // Smart Recordatorios: re-derive the default schedule when date/start changes,
+  // unless the user has manually edited the list.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (remindersTouchedRef.current) return;
+    if (date && startTime) setReminders(smartDefaultReminders(date, startTime));
+  }, [date, startTime, isOpen]);
+
+  const applyQuickDuration = (minutes: number) => {
+    autoEndRef.current = false;
+    const start = startTime || clinicClockTime();
+    if (!startTime) setStartTime(start);
+    setEndTime(addMinutesToTime(start, minutes));
+  };
 
   // patient search debounce (ported from the calendar's EventModal step 1)
   useEffect(() => {
@@ -191,6 +257,11 @@ export function CreateAppointmentModal({
       const dentistName = firstDoctor
         ? `${firstDoctor.first_name || ''} ${firstDoctor.last_name || ''}`.trim()
         : '';
+      // Only surface the name symlink / EHR menu on the calendar event when the
+      // contact is actually linked to a patient record. A raw contact id must
+      // never be sent as `patient_id` (it would link to a non-existent EHR).
+      const linkedPatientId =
+        selectedPatient?.paciente_id ?? prefilledContact?.patient_id ?? null;
       const res = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -199,14 +270,16 @@ export function CreateAppointmentModal({
           patient_name: effectivePatientName,
           phone: phoneDigits,
           phone_country: phoneCountry,
-          patient_id: selectedPatient?.paciente_id ?? prefilledContact?.patient_id ?? prefilledContact?.id ?? null,
+          patient_id: linkedPatientId,
           date,
           start_time: startTime,
           end_time: endTime,
           procedure: procedure || '',
-          dentist: dentist.trim() || dentistName,
+          dentist: dentistName,
           status,
           notes: notes.trim(),
+          reminder_minutes: reminders[0] ?? 30,
+          reminders,
           invitees: invitees.map((i) => i.id),
           force_conflict: force,
         }),
@@ -226,6 +299,7 @@ export function CreateAppointmentModal({
         }
         throw new Error((json as { error?: string })?.error || 'No se pudo agendar la cita.');
       }
+      setSubmitting(false);
       setDone(true);
       push('Cita agendada correctamente', 'success');
       onSuccess?.();
@@ -349,35 +423,110 @@ export function CreateAppointmentModal({
                   <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-1">
                     Inicio
                   </label>
-                  <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="text-sm" />
+                  <TimeClockPicker
+                    aria-label="Hora de inicio"
+                    value={startTime}
+                    onChange={setStartTime}
+                  />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-1">
                     Fin
                   </label>
-                  <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="text-sm" />
+                  <TimeClockPicker
+                    aria-label="Hora de fin"
+                    value={endTime}
+                    minTime={startTime}
+                    onChange={(v) => {
+                      autoEndRef.current = false;
+                      setEndTime(v);
+                    }}
+                  />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-1">
-                    Procedimiento
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                  Duración rápida:
+                </span>
+                {QUICK_DURATIONS.map(({ label, minutes }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => applyQuickDuration(minutes)}
+                    className="rounded-lg border border-slate-200/80 bg-white/70 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-teal-400/50 hover:bg-teal-400/10 hover:text-teal-700 dark:border-slate-700/70 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-teal-400/15 dark:hover:text-teal-200"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-1">
+                  Procedimiento
+                </label>
+                <Select value={procedure} onChange={(e) => setProcedure(e.target.value)}>
+                  <option value="">Sin procedimiento</option>
+                  {PROCEDURES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                    Recordatorios
                   </label>
-                  <Select value={procedure} onChange={(e) => setProcedure(e.target.value)}>
-                    <option value="">Sin procedimiento</option>
-                    {PROCEDURES.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </Select>
+                  <span className="text-[11px] text-zinc-400">
+                    {reminders.length} recordatorio{reminders.length === 1 ? '' : 's'}
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-1">
-                    Odontólogo
-                  </label>
-                  <Input value={dentist} onChange={(e) => setDentist(e.target.value)} placeholder="Nombre del doctor" />
+                <div className="space-y-2">
+                  {reminders.map((minutes, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <Select
+                        value={String(minutes)}
+                        onChange={(e) => {
+                          remindersTouchedRef.current = true;
+                          const next = reminders.slice();
+                          next[index] = Number(e.target.value);
+                          setReminders(next);
+                        }}
+                      >
+                        {REMINDER_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </Select>
+                      {reminders.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            remindersTouchedRef.current = true;
+                            setReminders(reminders.filter((_, i) => i !== index));
+                          }}
+                          className="shrink-0 text-rose-500 hover:text-rose-600"
+                          aria-label="Quitar recordatorio"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      remindersTouchedRef.current = true;
+                      setReminders([...reminders, 30]);
+                    }}
+                    className="text-xs font-medium text-teal-600 hover:text-teal-700"
+                  >
+                    + Añadir recordatorio
+                  </button>
                 </div>
               </div>
 

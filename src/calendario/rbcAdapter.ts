@@ -46,3 +46,43 @@ export function normalizeTime(time?: string | null): string {
   const valid = /^\d{2}$/.test(hh) && Number(hh) <= 23 && /^\d{2}$/.test(mm) && Number(mm) <= 59;
   return valid ? `${hh}:${mm}` : '';
 }
+
+/**
+ * The true UTC instant whose *clinic-local* clock shows `date` + `time` (wall
+ * clock). `America/Tegucigalpa` has no DST, so the offset is a constant
+ * UTC−06:00 — this anchors `event_reminders.reminder_time`.
+ */
+export function clinicWallClockTimestamp(date: string, time?: string): Date {
+  const [y = '0', mo = '0', d = '0'] = (date || '').split('-');
+  const [h = '0', mi = '0'] = (time || '09:00').split(':');
+  const wall = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi));
+  const clinicOffsetMs = 6 * 3600 * 1000; // UTC−06:00 = wall + 6h in UTC
+  return new Date(wall + clinicOffsetMs);
+}
+
+/** `17:45` → `5:45 p. m.` — the es-HN 12-hour display (only `hh:mm`, no seconds). */
+export function formatClock12(time?: string | null): string {
+  const t = normalizeTime(time);
+  if (!t) return '';
+  const h24 = Number(t.slice(0, 2));
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  const suffix = h24 >= 12 ? 'p. m.' : 'a. m.';
+  return `${h}:${t.slice(3, 5)} ${suffix}`;
+}
+
+/** `17:45` + 60 → `18:45` (`HH:MM`). Wraps past midnight within the same key. */
+export function addHourToTime(time?: string | null, hours = 1): string {
+  const t = normalizeTime(time) || '09:00';
+  const h24 = (Number(t.slice(0, 2)) + hours) % 24;
+  return `${String(h24).padStart(2, '0')}:${t.slice(3, 5)}`;
+}
+
+/** `17:45` + 45 → `18:30` (`HH:MM`). Minute-granularity offset for quick-duration chips. */
+export function addMinutesToTime(time?: string | null, minutes = 0): string {
+  const t = normalizeTime(time) || '09:00';
+  const total = Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) + minutes;
+  const clamped = ((total % 1440) + 1440) % 1440; // wrap past midnight, guard negatives
+  const h24 = Math.floor(clamped / 60);
+  const mm = clamped % 60;
+  return `${String(h24).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}

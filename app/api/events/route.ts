@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerServiceClient } from '@/lib/supabase/server';
 import { authorizeCalendar } from '@/lib/calendarAuth';
-import { CLINIC_TIME_ZONE } from '@/calendario/rbcAdapter';
+import { CLINIC_TIME_ZONE, clinicWallClockTimestamp } from '@/calendario/rbcAdapter';
 import {
   findDentistConflicts,
   dentistConflictMessage,
@@ -79,9 +79,19 @@ export async function POST(req: Request) {
       phone,
       phone_country,
       invitees,
+      reminders,
     } = body;
 
     const supabase = createServerServiceClient();
+
+    // Multiple reminder offsets (minutes before start) → `event_reminders`.
+    const reminderMinutes: number[] = [
+      ...new Set(
+        (Array.isArray(reminders) ? reminders : [])
+          .map((n: unknown) => Number(n))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      ),
+    ];
 
     // Invitees = clinic users (doctors/assistants) to book in this slot too.
     const inviteeIds: string[] = [...new Set((Array.isArray(invitees) ? invitees : []) as string[])].filter(Boolean);
@@ -194,6 +204,22 @@ export async function POST(req: Request) {
         if (insErr) {
           console.error('[events POST] invitee save failed', insErr);
         }
+      }
+    }
+
+    // Reminders are anchored to the appointment's clinic-local start
+    // (event_start − minutes_before), never to now(), so a "1 día antes"
+    // reminder fires at the right absolute instant.
+    if (reminderMinutes.length > 0 && data?.id) {
+      const anchor = clinicWallClockTimestamp(effectiveDate, effectiveStart);
+      const reminderRows = reminderMinutes.map((minutes_before) => {
+        const fireAt = new Date(anchor.getTime());
+        fireAt.setMinutes(fireAt.getMinutes() - minutes_before);
+        return { event_id: data.id, minutes_before, reminder_time: fireAt.toISOString() };
+      });
+      const { error: remErr } = await supabase.from('event_reminders').insert(reminderRows);
+      if (remErr) {
+        console.error('[events POST] reminders save failed', remErr);
       }
     }
 
