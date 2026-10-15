@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   X,
@@ -39,6 +38,7 @@ import type { LocalContact, LocalLabel, MedicalHistory } from '@/lib/contacts/db
 import { LABEL_COLORS, formatDate, fullName, primaryPhone } from '@/lib/contacts/db';
 import { formatPhoneDisplay, sharePatientContact } from '@/lib/contacts/vcard';
 import { meaningfulMedicalTags } from '@/lib/contacts/patientLink';
+import { monolithMenuUrl } from '@/lib/monolith';
 import { PatientLinkModal } from './PatientLinkModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
 import { ContactAvatar } from './ContactAvatar';
@@ -148,7 +148,6 @@ export function ContactDetailSheet({
   onAddLabel,
   onEditMedical,
 }: ContactDetailSheetProps) {
-  const router = useRouter();
   const [tab, setTab] = useState<SheetTab>('info');
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState<'idle' | 'shared' | 'copied'>('idle');
@@ -170,7 +169,7 @@ export function ContactDetailSheet({
   const effectiveMedications = meaningfulMedicalTags(medical?.currentMedications ?? []);
 
   const openEhr = () => {
-    if (contact.patient_id) router.push(`/patient-preview/${contact.patient_id}`);
+    if (contact.patient_id) window.location.href = monolithMenuUrl(contact.patient_id);
   };
 
   const copyPatientId = async () => {

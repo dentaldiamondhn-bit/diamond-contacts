@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useUser } from '@clerk/nextjs';
 import { Search, Plus, Stethoscope, Menu } from 'lucide-react';
@@ -34,6 +33,7 @@ import {
   updateLocalLabel,
 } from '@/lib/contacts/syncEngine';
 import { exportContacts } from '@/lib/contacts/vcard';
+import { monolithMenuUrl } from '@/lib/monolith';
 import { ContactSidebar } from '@/components/contacts/ContactSidebar';
 import { MobileSidebarSheet } from '@/components/contacts/MobileSidebarSheet';
 import { COLUMNS } from '@/components/contacts/columns';
@@ -71,7 +71,6 @@ const ALL_COLUMN_KEYS = COLUMNS.map((c) => c.key);
 
 export default function ContactosPage() {
   const { user } = useUser();
-  const router = useRouter();
   const [filter, setFilter] = useState<ContactFilter>('all');
   const [search, setSearch] = useState('');
   const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -375,7 +374,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
   };
 
   const openEhr = (c: LocalContact) => {
-    if (c.patient_id) router.push(`/patient-preview/${c.patient_id}`);
+    if (c.patient_id) window.location.href = monolithMenuUrl(c.patient_id);
   };
 
   const appointmentPrefill = useMemo<PrefilledContact | null>(() => {
