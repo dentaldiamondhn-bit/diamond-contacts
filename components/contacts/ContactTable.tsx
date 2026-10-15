@@ -312,15 +312,6 @@ export function ContactTable({
                       <span className="text-slate-500/60">—</span>
                     )}
                   </td>
-                  <td className={cellCls(statusVisible)} onClick={(e) => e.stopPropagation()}>
-                    {contact.synced === 1 && !pendingContactIds?.has(contact.id) ? (
-                      <CheckCircle2 size={14} className="text-emerald-500" aria-label="Sincronizado (dispositivo + nube)" />
-                    ) : isOnline ? (
-                      <Cloud size={14} className="text-amber-500" aria-label="Cambios guardados localmente (pendientes de sincronizar)" />
-                    ) : (
-                      <CloudOff size={14} className="text-zinc-400 dark:text-zinc-500" aria-label="Sin conexión — cambios guardados localmente" />
-                    )}
-                  </td>
                   <td className={cellCls(labelsVisible)} onClick={(e) => e.stopPropagation()}>
                     {contact.label_ids.length > 0 ? (
                       <div className="flex items-center gap-1 flex-wrap">
@@ -364,6 +355,15 @@ export function ContactTable({
                   </td>
                   <td className={cn('py-3 pr-4', updatedVisible ? 'hidden sm:table-cell' : 'hidden')}>
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">{formatDate(contact.updated_at)}</span>
+                  </td>
+                  <td className={cellCls(statusVisible)} onClick={(e) => e.stopPropagation()}>
+                    {contact.synced === 1 && !pendingContactIds?.has(contact.id) ? (
+                      <CheckCircle2 size={14} className="text-emerald-500" aria-label="Sincronizado (dispositivo + nube)" />
+                    ) : isOnline ? (
+                      <Cloud size={14} className="text-amber-500" aria-label="Cambios guardados localmente (pendientes de sincronizar)" />
+                    ) : (
+                      <CloudOff size={14} className="text-zinc-400 dark:text-zinc-500" aria-label="Sin conexión — cambios guardados localmente" />
+                    )}
                   </td>
                   <td className="py-3 pr-4 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="inline-flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
