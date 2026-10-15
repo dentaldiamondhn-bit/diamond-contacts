@@ -71,7 +71,7 @@ function SortableHeader({
 }) {
   const active = sort.key === column.key;
   return (
-    <th className={cn('pb-3', column.hiddenMobile && 'hidden sm:table-cell', column.className)}>
+    <th className={cn('py-3 pr-4', column.hiddenMobile && 'hidden sm:table-cell', column.className)}>
       <button
         onClick={() => onToggle(column.key as ContactSortKey)}
         className={cn(
@@ -213,9 +213,9 @@ export function ContactTable({
 
       <div className="flex-1 overflow-auto p-0">
         <table className="w-full text-left border-collapse">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/70 backdrop-blur-sm">
             <tr className="border-b border-zinc-200 dark:border-zinc-800">
-              <th className="pb-3 pl-4 w-8">
+              <th className="py-3 pl-4 w-8">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -230,16 +230,16 @@ export function ContactTable({
                 ) : (
                   <th
                     key={col.key}
-                    className={cn('pb-3', col.hiddenMobile && 'hidden md:table-cell', col.className)}
+                    className={cn('py-3 pr-4', col.hiddenMobile && 'hidden md:table-cell', col.className)}
                   >
                     <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{col.label}</span>
                   </th>
                 ),
               )}
-              <th className="pb-3 w-24"></th>
+              <th className="py-3 w-24"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/70">
+          <tbody>
             {contacts.map((contact) => {
               const name = fullName(contact);
               const phone = primaryPhone(contact);
@@ -250,8 +250,8 @@ export function ContactTable({
                   key={contact.id}
                   onClick={() => onOpen(contact)}
                   className={cn(
-                    'group cursor-pointer transition-colors',
-                    selected ? 'bg-blue-50/70 dark:bg-blue-500/10' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40',
+                    'group cursor-pointer border-b border-slate-200/70 dark:border-slate-800/40 transition-colors',
+                    selected ? 'bg-blue-50/70 dark:bg-blue-500/10' : 'hover:bg-slate-100/60 dark:hover:bg-slate-800/30',
                   )}
                 >
                   <td className="py-3 pl-4 w-8" onClick={(e) => e.stopPropagation()}>
@@ -293,13 +293,13 @@ export function ContactTable({
                     {phone ? (
                       <div className="flex items-center gap-1.5">
                         <Phone size={13} className="text-zinc-400 shrink-0" />
-                        <span className="text-sm text-zinc-600 dark:text-zinc-300">{formatPhoneDisplay(phone.phone_number)}</span>
+                        <span className="font-mono text-sm tracking-tight text-zinc-600 dark:text-zinc-300">{formatPhoneDisplay(phone.phone_number)}</span>
                         <span className="hidden group-hover:inline-flex items-center ml-0.5">
                           <ContactQuickActions phone={phone.phone_number} patientName={name} size="sm" />
                         </span>
                       </div>
                     ) : (
-                      <span className="text-zinc-300 dark:text-zinc-600">—</span>
+                      <span className="text-slate-500/60">—</span>
                     )}
                   </td>
                   <td className={cellCls(emailVisible)}>
@@ -309,7 +309,7 @@ export function ContactTable({
                         {email.email}
                       </span>
                     ) : (
-                      <span className="text-zinc-300 dark:text-zinc-600">—</span>
+                      <span className="text-slate-500/60">—</span>
                     )}
                   </td>
                   <td className={cellCls(statusVisible)} onClick={(e) => e.stopPropagation()}>
@@ -344,7 +344,7 @@ export function ContactTable({
                         )}
                       </div>
                     ) : (
-                      <span className="text-zinc-300 dark:text-zinc-600">—</span>
+                      <span className="text-slate-500/60">—</span>
                     )}
                   </td>
                   <td className={expedienteCellCls(expedienteVisible)} onClick={(e) => e.stopPropagation()}>
