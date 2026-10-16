@@ -41,7 +41,13 @@ export default function RootLayout({
       signInUrl="/sign-in"
       afterSignOutUrl="/sign-in"
     >
-      <html lang="es" suppressHydrationWarning>
+      <html
+        lang="es"
+        // next-themes applies a `dark` class to <html> after mount based on the
+        // user's stored/system theme preference. The server can't know that
+        // preference, so this is an intentional, known hydration mismatch.
+        suppressHydrationWarning
+      >
         <head>
           <meta name="theme-color" content="#14b8a6" />
           <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -56,7 +62,15 @@ export default function RootLayout({
           <link rel="shortcut icon" href="/contacts.svg" />
           <link rel="apple-touch-icon" href="/contacts.png" />
         </head>
-        <body className={inter.className} suppressHydrationWarning>
+        <body
+          className={inter.className}
+          // next-themes applies a `dark` class to <html>/<body> after mount based on
+          // the user's stored/system theme preference. The server can't know that
+          // preference, so this is an intentional, known hydration mismatch.
+          // Suppressing here is deliberate; do not remove without addressing the
+          // theme-class mismatch first.
+          suppressHydrationWarning
+        >
           <SupabaseTokenBridge />
           <ThemeProvider>
             <ToastProvider>
