@@ -78,6 +78,7 @@ function SortableHeader({
           'inline-flex items-center gap-1 text-sm font-medium hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors',
           active ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 dark:text-zinc-400',
         )}
+        aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
         {column.label}
         {active ? (
@@ -303,7 +304,12 @@ export function ContactTable({
                     {phone ? (
                       <div className="flex items-center gap-1.5">
                         <Phone size={13} className="text-zinc-400 shrink-0" />
-                        <span className="font-mono text-sm tracking-tight text-zinc-600 dark:text-zinc-300">{formatPhoneDisplay(phone.phone_number)}</span>
+                        <a
+                          href={`tel:${phone.phone_number}`}
+                          className="font-mono text-sm tracking-tight text-zinc-600 dark:text-zinc-300 hover:underline hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                        >
+                          {formatPhoneDisplay(phone.phone_number)}
+                        </a>
                         <span className="hidden group-hover:inline-flex items-center ml-0.5">
                           <ContactQuickActions phone={phone.phone_number} patientName={name} size="sm" />
                         </span>

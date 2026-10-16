@@ -293,14 +293,14 @@ export function ContactDetailSheet({
                     </button>
                     <button
                       onClick={() => onSchedule(contact)}
-                      title="Agendar cita"
+                      aria-label="Agendar cita"
                       className="p-2 rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-500/20 transition-colors"
                     >
                       <CalendarPlus size={16} />
                     </button>
                     <button
                       onClick={() => onToggleFavorite(contact)}
-                      title={contact.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
+                      aria-label={contact.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
                       className={cn(
                         'p-2 rounded-lg transition-colors',
                         contact.is_favorite
@@ -312,15 +312,15 @@ export function ContactDetailSheet({
                     </button>
                     <button
                       onClick={() => setPrintOpen(true)}
-                      title="Imprimir"
-                      className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                      aria-label="Imprimir"
+                      className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
                     >
                       <Printer size={16} />
                     </button>
                     <button
                       onClick={() => onDelete(contact)}
-                      title="Mover a papelera"
-                      className="p-2 rounded-lg text-zinc-500 hover:bg-rose-50 hover:text-rose-600 dark:text-zinc-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-400"
+                      aria-label="Mover a papelera"
+                      className="p-2 rounded-lg text-zinc-500 hover:bg-rose-50 hover:text-rose-600 dark:text-zinc-400 dark:hover:bg-rose-500/10 dark:hover:text-rose-400 transition-colors"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -407,7 +407,12 @@ export function ContactDetailSheet({
                             Acciones rápidas
                           </p>
                           <p className="mt-0.5 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                            {formatPhoneDisplay(mainPhone.phone_number)}
+                            <a
+                              href={`tel:${mainPhone.phone_number}`}
+                              className="text-zinc-800 dark:text-zinc-200 hover:underline hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                            >
+                              {formatPhoneDisplay(mainPhone.phone_number)}
+                            </a>
                           </p>
                         </div>
                         <div className="flex items-center gap-1">
@@ -421,7 +426,7 @@ export function ContactDetailSheet({
                             <Share2 size={16} className={shared !== 'idle' ? 'text-emerald-500' : ''} />
                           </button>
                           {shared !== 'idle' && (
-                            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400" aria-live="polite">
                               {shared === 'shared' ? 'Compartido' : 'Copiado'}
                             </span>
                           )}
@@ -436,7 +441,12 @@ export function ContactDetailSheet({
                       {contact.phones.map((p) => (
                         <div key={p.id} className="flex items-center gap-2 py-1.5 text-sm text-zinc-800 dark:text-zinc-200">
                           <Phone size={14} className="text-zinc-400 shrink-0" />
-                          <span className="font-medium">{formatPhoneDisplay(p.phone_number)}</span>
+                          <a
+                            href={`tel:${p.phone_number}`}
+                            className="font-medium hover:underline hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                          >
+                            {formatPhoneDisplay(p.phone_number)}
+                          </a>
                           <span className="text-xs text-zinc-400 uppercase">{p.type}</span>
                         </div>
                       ))}
