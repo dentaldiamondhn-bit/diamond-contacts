@@ -20,12 +20,15 @@ interface ColumnVisibilityDropdownProps {
 /**
  * Column visibility menu.
  *
- * The menu is portaled into `document.body` because the app's glass surfaces
- * (`.glass-tint`, `.glass-card`) use `backdrop-filter`, which creates a stacking
- * context. Rendering the menu inline trapped its `z-index` inside the header's
- * stacking context, so the contacts table (a later sibling) painted over it and
- * clipped it. Portaling to the body escapes both the stacking context and the
- * `overflow-hidden` ancestors.
+ * Portaled into `document.body` because glass surfaces use `backdrop-filter`,
+ * which creates a stacking context that would clip an inline menu.
+ *
+ * Accessibility notes:
+ * - Uses `aria-haspopup="listbox"` (not the incorrect `role="menu"`) since the
+ *   options are native checkboxes that handle their own Tab/Space keyboard
+ *   interaction.
+ * - Returns focus to the trigger button when the menu closes (Escape or
+ *   click outside).
  */
 export function ColumnVisibilityDropdown({ columns, visible, onToggle }: ColumnVisibilityDropdownProps) {
   const [open, setOpen] = useState(false);
@@ -40,6 +43,10 @@ export function ColumnVisibilityDropdown({ columns, visible, onToggle }: ColumnV
     setPos({ top: rect.bottom + 8, left: rect.right });
   }, []);
 
+  const returnFocus = useCallback(() => {
+    triggerRef.current?.focus();
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: MouseEvent) => {
@@ -48,7 +55,10 @@ export function ColumnVisibilityDropdown({ columns, visible, onToggle }: ColumnV
       setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') {
+        setOpen(false);
+        returnFocus();
+      }
     };
     const onReflow = () => updatePosition();
 
@@ -62,16 +72,16 @@ export function ColumnVisibilityDropdown({ columns, visible, onToggle }: ColumnV
       window.removeEventListener('resize', onReflow);
       window.removeEventListener('scroll', onReflow, true);
     };
-  }, [open, updatePosition]);
+  }, [open, updatePosition, returnFocus]);
 
   const menu =
     open && pos
       ? createPortal(
           <div
             ref={menuRef}
-            role="menu"
+            aria-label="Columnas"
             style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)' }}
-            className="z-[9999] w-56 min-w-[200px] rounded-xl glass-card shadow-2xl py-1 focus:outline-none"
+            className="z-[9999] w-56 min-w-[200px] rounded-xl glass-card shadow-2xl py-1"
           >
             <p className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
               Columnas
@@ -87,7 +97,7 @@ export function ColumnVisibilityDropdown({ columns, visible, onToggle }: ColumnV
                     checked={visible.has(col.key)}
                     disabled={col.lockable}
                     onChange={() => onToggle(col.key)}
-                    className="accent-blue-600 cursor-pointer disabled:cursor-not-allowed"
+                    className="accent-blue-600 cursor-pointer disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
                   />
                   <span className={cn(col.lockable && 'opacity-60')}>{col.label}</span>
                 </label>
@@ -109,7 +119,7 @@ export function ColumnVisibilityDropdown({ columns, visible, onToggle }: ColumnV
         className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
         title="Columnas"
         aria-label="Columnas"
-        aria-haspopup="menu"
+        aria-haspopup="listbox"
         aria-expanded={open}
       >
         <Columns size={16} /> Columnas

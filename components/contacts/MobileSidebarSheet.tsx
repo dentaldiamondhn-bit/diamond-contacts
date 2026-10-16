@@ -19,11 +19,14 @@ export function MobileSidebarSheet({ open, onClose, children }: MobileSidebarShe
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
+    const preventTouchMove = (e: TouchEvent) => e.preventDefault();
     document.addEventListener('keydown', onKey);
+    ;(document as any).addEventListener('touchmove', preventTouchMove, { passive: false });
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
+      ;(document as any).removeEventListener('touchmove', preventTouchMove, { passive: false });
       document.body.style.overflow = prevOverflow;
     };
   }, [open, onClose]);
@@ -32,7 +35,7 @@ export function MobileSidebarSheet({ open, onClose, children }: MobileSidebarShe
 
   return (
     <div className="fixed inset-0 z-40 lg:hidden">
-      <div className="absolute inset-0 animate-fade-in bg-slate-950/45 backdrop-blur-sm" onClick={onClose} aria-hidden />
+      <div className="absolute inset-0 animate-fade-in bg-slate-950/45 backdrop-blur-sm touch-action-none" onClick={onClose} aria-hidden />
       <div className="absolute inset-y-0 left-0 flex w-80 max-w-[85vw] animate-slide-in-left shadow-2xl">
         {children}
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   X,
@@ -156,9 +156,19 @@ export function ContactDetailSheet({
   const [labelColor, setLabelColor] = useState(LABEL_COLORS[0]);
   const [linkerOpen, setLinkerOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const open = !!contact;
   if (!contact) return null;
+
+  // Move focus into the sheet when it opens so keyboard users are not lost.
+  useEffect(() => {
+    if (!open) return;
+    closeButtonRef.current?.focus();
+    return () => {
+      closeButtonRef.current = null;
+    };
+  }, [open]);
 
   const name = fullName(contact);
   const label = (id: string) => labels.find((l) => l.id === id);
@@ -211,9 +221,11 @@ export function ContactDetailSheet({
             className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-md"
             onClick={onClose}
           />
-          <motion.aside
-            key="sheet-panel"
-            initial={{ x: 480 }}
+            <motion.aside
+              key="sheet-panel"
+              aria-modal="true"
+              aria-labelledby="contact-sheet-title"
+              initial={{ x: 480 }}
             animate={{ x: 0 }}
             exit={{ x: 480 }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
@@ -223,6 +235,7 @@ export function ContactDetailSheet({
             <div className="shrink-0 flex flex-col items-center px-6 pt-8 pb-4 border-b border-zinc-200 dark:border-zinc-800">
               <div className="flex items-start w-full">
                 <button
+                  ref={closeButtonRef}
                   onClick={onClose}
                   className="p-2 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:text-zinc-200 dark:hover:bg-zinc-800 text-sm"
                 >
@@ -230,7 +243,7 @@ export function ContactDetailSheet({
                 </button>
               </div>
               <ContactAvatar name={name || 'C'} size="lg" className="mt-2" />
-              <h2 className="mt-3 text-xl font-semibold text-zinc-900 dark:text-white text-center">
+              <h2 id="contact-sheet-title" className="mt-3 text-xl font-semibold text-zinc-900 dark:text-white text-center">
                 {name || 'Sin nombre'}
               </h2>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
