@@ -165,14 +165,14 @@ export function ContactTable({
           </span>
           <button
             onClick={onExportSelected}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
           >
             <Download size={14} /> Exportar
           </button>
           <button
             onClick={onMergeSelected}
             disabled={selectionCount < 2}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:pointer-events-none"
             title={selectionCount < 2 ? 'Selecciona al menos 2 contactos' : 'Combinar duplicados'}
           >
             <Merge size={14} /> Combinar
@@ -181,13 +181,13 @@ export function ContactTable({
             <>
               <button
                 onClick={onRestoreSelected}
-                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               >
                 <RotateCcw size={14} /> Restaurar
               </button>
               <button
                 onClick={onPurgeSelected}
-                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 bg-white dark:bg-zinc-800 border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 bg-white dark:bg-zinc-800 border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
               >
                 <Delete size={14} /> Eliminar definitivamente
               </button>
@@ -196,13 +196,13 @@ export function ContactTable({
             <>
               <button
                 onClick={onArchiveSelected}
-                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
               >
                 <Check size={14} /> Archivar
               </button>
               <button
                 onClick={onDeleteSelected}
-                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 bg-white dark:bg-zinc-800 border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 bg-white dark:bg-zinc-800 border border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
               >
                 <Trash2 size={14} /> Eliminar
               </button>
@@ -248,9 +248,15 @@ export function ContactTable({
               return (
                 <tr
                   key={contact.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Abrir contacto ${name}`}
                   onClick={() => onOpen(contact)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') onOpen(contact);
+                  }}
                   className={cn(
-                    'group cursor-pointer border-b border-slate-200/70 dark:border-slate-800/40 transition-colors',
+                    'group cursor-pointer border-b border-slate-200/70 dark:border-slate-800/40 transition-colors outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400',
                     selected ? 'bg-blue-50/70 dark:bg-blue-500/10' : 'hover:bg-slate-100/60 dark:hover:bg-slate-800/30',
                   )}
                 >
@@ -272,12 +278,16 @@ export function ContactTable({
                             onToggleFavorite(contact);
                           }}
                           className={cn(
-                            'text-zinc-300 dark:text-zinc-600 hover:text-amber-500 transition-colors',
-                            contact.is_favorite && 'text-amber-400 hover:text-amber-500',
+                            'p-2 rounded-lg text-zinc-300 dark:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-amber-500 transition-colors',
+                            contact.is_favorite && 'text-amber-400 bg-amber-50 dark:bg-amber-500/10',
                           )}
                           title={contact.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
                         >
-                          {contact.is_favorite ? <Star size={15} className="fill-amber-400" /> : <StarOff size={15} />}
+                          {contact.is_favorite ? (
+                            <Star size={18} className="fill-amber-400" />
+                          ) : (
+                            <StarOff size={18} />
+                          )}
                         </button>
                       )}
                       <ContactAvatar name={name} />
@@ -289,7 +299,7 @@ export function ContactTable({
                       </div>
                     </div>
                   </td>
-                  <td className={cellCls(phoneVisible)} onClick={(e) => e.stopPropagation()}>
+                  <td className={cn('py-3 pr-4', phoneVisible ? '' : 'hidden')} onClick={(e) => e.stopPropagation()}>
                     {phone ? (
                       <div className="flex items-center gap-1.5">
                         <Phone size={13} className="text-zinc-400 shrink-0" />
@@ -338,7 +348,7 @@ export function ContactTable({
                       <span className="text-slate-500/60">—</span>
                     )}
                   </td>
-                  <td className={expedienteCellCls(expedienteVisible)} onClick={(e) => e.stopPropagation()}>
+                  <td className={cn('py-3 pr-4', expedienteVisible ? '' : 'hidden')} onClick={(e) => e.stopPropagation()}>
                     {contact.patient_id ? (
                       <button
                         onClick={() => onOpenEhr(contact)}
@@ -371,57 +381,57 @@ export function ContactTable({
                         <>
                           <button
                             onClick={() => onRestore(contact)}
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            className="p-2 rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                             title="Restaurar"
                           >
-                            <RotateCcw size={15} />
+                            <RotateCcw size={17} />
                           </button>
                           <button
                             onClick={() => onDelete(contact)}
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            className="p-2 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                             title="Eliminar definitivamente"
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={17} />
                           </button>
                         </>
                       ) : (
                         <>
                           <button
                             onClick={() => onOpen(contact)}
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-blue-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            className="p-2 rounded-lg text-zinc-400 hover:text-blue-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                             title="Ver detalles"
                           >
-                            <Eye size={15} />
+                            <Eye size={17} />
                           </button>
                           <button
                             onClick={() => onQuickEdit(contact)}
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-blue-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            className="p-2 rounded-lg text-zinc-400 hover:text-blue-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                             title="Editar"
                           >
-                            <Pencil size={15} />
+                            <Pencil size={17} />
                           </button>
                           {contact.patient_id && (
                             <button
                               onClick={() => onOpenEhr(contact)}
-                              className="p-1.5 rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-500/10"
+                              className="p-2 rounded-lg text-zinc-400 hover:text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-500/10"
                               title="Abrir Expediente EHR"
                             >
-                              <ExternalLink size={15} />
+                              <ExternalLink size={17} />
                             </button>
                           )}
                           <button
                             onClick={() => onSchedule(contact)}
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-500/10"
+                            className="p-2 rounded-lg text-zinc-400 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-500/10"
                             title="Agendar cita"
                           >
-                            <CalendarDays size={15} />
+                            <CalendarDays size={17} />
                           </button>
                           <button
                             onClick={() => onDelete(contact)}
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                            className="p-2 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                             title="Mover a papelera"
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={17} />
                           </button>
                         </>
                       )}
