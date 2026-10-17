@@ -5,11 +5,7 @@ import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel } from '@/lib/contacts/db';
 import { fullName, primaryPhone, primaryEmail, formatDate } from '@/lib/contacts/db';
 import { formatPhoneDisplay } from '@/lib/contacts/vcard';
-import {
-  whatsappHref,
-  openWhatsAppConversation,
-  usesNativeWhatsAppIntent,
-} from '@/lib/contacts/vcard';
+import { whatsappHref, openWhatsAppConversation } from '@/lib/contacts/vcard';
 import { ContactQuickActions } from './ContactQuickActions';
 import { ContactAvatar } from './ContactAvatar';
 
@@ -97,11 +93,10 @@ export function ContactMobileCard({
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => {
-              // The card itself is clickable, so stop the click from also opening
-              // the detail sheet: that re-render unmounts this anchor and React
-              // cancels the queued wa.me navigation before WhatsApp opens.
+              // Never let the click bubble to a clickable parent, and never let the
+              // browser follow wa.me inside the Android WebView (its redirect to
+              // whatsapp:// fails with net::ERR_UNKNOWN_URL_SCHEME).
               e.stopPropagation()
-              if (!usesNativeWhatsAppIntent()) return
               e.preventDefault()
               openWhatsAppConversation(phone.phone_number)
             }}

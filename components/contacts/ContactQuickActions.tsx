@@ -6,10 +6,9 @@ import AnimatedWhatsApp from '@/components/AnimatedWhatsApp';
 import {
   formatToE164,
   smsDeepLink,
-  openWhatsAppDirectly,
+  openWhatsAppConversation,
   whatsappGreeting,
   whatsappHref,
-  usesNativeWhatsAppIntent,
 } from '@/lib/contacts/vcard';
 
 interface ContactQuickActionsProps {
@@ -31,8 +30,8 @@ export function ContactQuickActions({ phone, patientName, size = 'md', className
   // long-press → open/copy link works) and only falls back to the native
   // `whatsapp://` intent inside the Capacitor shell, where a plain https link
   // would just render a web page in the WebView.
-  const waHref = whatsappHref(phone, whatsappGreeting(patientName));
-  const nativeIntent = usesNativeWhatsAppIntent();
+  const greeting = whatsappGreeting(patientName);
+  const waHref = whatsappHref(phone, greeting);
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
@@ -41,13 +40,14 @@ export function ContactQuickActions({ phone, patientName, size = 'md', className
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => {
-          // This control lives inside clickable rows/cards; never let the click
-          // bubble to them, or the parent re-render unmounts this anchor and
-          // cancels the navigation to WhatsApp.
+          // Stop the click bubbling to clickable rows/cards (the parent re-render
+          // would unmount this anchor and cancel the navigation), and always take
+          // over the navigation: a default anchor jump to wa.me inside the
+          // Android WebView follows wa.me's redirect to whatsapp:// and dies with
+          // net::ERR_UNKNOWN_URL_SCHEME.
           e.stopPropagation()
-          if (!nativeIntent || !waHref) return
           e.preventDefault()
-          void openWhatsAppDirectly(phone, whatsappGreeting(patientName))
+          void openWhatsAppConversation(phone, greeting)
         }}
         className={cn(btn, 'hover:bg-emerald-500/10')}
         title={`Abrir WhatsApp con ${patientName || 'el paciente'}`}

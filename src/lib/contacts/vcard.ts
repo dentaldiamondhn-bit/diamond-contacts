@@ -302,26 +302,9 @@ export async function openWhatsAppDirectly(
   textMessage = '',
   defaultCountry = '+504',
 ): Promise<void> {
-  const e164 = formatToE164(phone, defaultCountry)
-  const digits = (e164 || whitelistPhoneForWhatsApp(phone)).replace('+', '')
-  if (!digits) return
-
-  const encodedText = encodeURIComponent(textMessage)
-  const httpsUrl = `https://wa.me/${digits}${textMessage ? `?text=${encodedText}` : ''}`
-
-  if (Capacitor.isNativePlatform()) {
-    const intentUrl = `whatsapp://send?phone=${digits}${textMessage ? `&text=${encodedText}` : ''}`
-    try {
-      await AppLauncher.openUrl({ url: intentUrl })
-    } catch {
-      // WhatsApp is not installed — hand the https URL to the OS instead of
-      // letting the WebView surface net::ERR_UNKNOWN_URL_SCHEME.
-      await AppLauncher.openUrl({ url: httpsUrl }).catch(() => {})
-    }
-    return
-  }
-
-  window.open(httpsUrl, '_blank', 'noopener,noreferrer')
+  // Same runtime-safe launcher as the contacts links; kept as the public name
+  // used by the calendar and appointment flows.
+  await openWhatsAppConversation(phone, textMessage, defaultCountry)
 }
 
 /**
@@ -356,36 +339,51 @@ export function whatsappHref(phone: string, text = '', defaultCountry = '+504'):
   return text ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : `https://wa.me/${digits}`
 }
 
-/** True when running inside the Capacitor shell, where a `whatsapp://` intent is
- *  needed because `https://wa.me` would just load a web page in the WebView. */
-export function usesNativeWhatsAppIntent(): boolean {
-  return Capacitor.isNativePlatform()
-}
-
 /**
- * Opens an existing (or new) WhatsApp conversation with no pre-filled text.
- * Native shells dispatch the `whatsapp://send` intent so WhatsApp itself opens;
- * web/PWA hand the `wa.me` link to the OS.
+ * Opens a WhatsApp conversation, in a way that works in every runtime this app
+ * ships to (Android shell, PWA, desktop browser).
+ *
+ * Why not `Capacitor.isNativePlatform()`: the shell loads this app from a remote
+ * `server.url`, so the Capacitor bridge can report `web` inside the APK. Gating
+ * the intent on that flag made the shell fall through to a plain `wa.me`
+ * navigation, whose server-side redirect to `whatsapp://send/…` the WebView then
+ * tried to load itself, failing with `net::ERR_UNKNOWN_URL_SCHEME`.
+ *
+ * So we always attempt the OS intent first (it simply rejects when the plugin is
+ * absent, i.e. on the web) and never navigate the current document to `wa.me`:
+ * that redirect is only safe in a real browser, never in the Android WebView.
  */
-export function openWhatsAppConversation(phone: string, defaultCountry = '+504'): void {
+export async function openWhatsAppConversation(
+  phone: string,
+  textMessage = '',
+  defaultCountry = '+504',
+): Promise<void> {
   const digits = normalizeWhatsAppNumber(phone, defaultCountry).replace('+', '')
   if (!digits || typeof window === 'undefined') return
-  const url = `https://wa.me/${digits}`
-  if (Capacitor.isNativePlatform()) {
-    // Chain every fallback so a refused intent can never end in a silent no-op:
-    // intent -> https via AppLauncher -> plain navigation (WebView hands it off).
-    void AppLauncher.openUrl({ url: `whatsapp://send?phone=${digits}` })
-      .then(() => undefined)
-      .catch(() =>
-        AppLauncher.openUrl({ url })
-          .then(() => undefined)
-          .catch(() => {
-            window.location.href = url
-          }),
-      )
+
+  const encoded = textMessage ? encodeURIComponent(textMessage) : ''
+  const httpsUrl = `https://wa.me/${digits}${encoded ? `?text=${encoded}` : ''}`
+  const intentUrl = `whatsapp://send?phone=${digits}${encoded ? `&text=${encoded}` : ''}`
+
+  // 1) Hand the whatsapp:// scheme to the OS so the WhatsApp app itself opens.
+  try {
+    await AppLauncher.openUrl({ url: intentUrl })
     return
+  } catch {
+    /* not native, or WhatsApp not installed */
   }
-  window.open(url, '_blank', 'noopener,noreferrer')
+
+  // 2) Still native: open the wa.me link through the OS, which puts it in a real
+  //    browser where its redirect to WhatsApp is handled correctly.
+  try {
+    await AppLauncher.openUrl({ url: httpsUrl })
+    return
+  } catch {
+    /* genuinely a browser/PWA */
+  }
+
+  // 3) Web / PWA: hand the link to the OS in a new tab.
+  window.open(httpsUrl, '_blank', 'noopener,noreferrer')
 }
 
 export function smsDeepLink(phone: string, body?: string): string {

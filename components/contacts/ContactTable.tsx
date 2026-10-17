@@ -31,11 +31,7 @@ import { COLUMNS, SORTABLE_COLUMN_KEYS, type ContactColumn } from './columns';
 import { ContactQuickActions } from './ContactQuickActions';
 import { ContactAvatar } from './ContactAvatar';
 import { formatPhoneDisplay } from '@/lib/contacts/vcard';
-import {
-  whatsappHref,
-  openWhatsAppConversation,
-  usesNativeWhatsAppIntent,
-} from '@/lib/contacts/vcard';
+import { whatsappHref, openWhatsAppConversation } from '@/lib/contacts/vcard';
 
 interface ContactTableProps {
   contacts: LocalContact[];
@@ -312,7 +308,6 @@ export function ContactTable({
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => {
-                            if (!usesNativeWhatsAppIntent()) return
                             e.preventDefault()
                             openWhatsAppConversation(phone.phone_number)
                           }}
