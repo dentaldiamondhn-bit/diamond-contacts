@@ -1,65 +1,96 @@
-# Diamond Contacts — Accessibility & Mobile Layout Improvement Plan
+# Diamond Contacts — Accessibility & Mobile Layout Plan
 
-Findings from the UI/UX review of `diamond-contacts` (standalone Capacitor app) and the related patient-form work in `diamond-link-original`, grouped by **category** and scheduled in **phases 0 → N**. Each phase carries a completion progress bar (`done / total`). All findings are currently `open` (0% complete).
+Findings from the original UI/UX review of `diamond-contacts` (standalone Capacitor app), grouped by category and scheduled in **phases 0 → 3**, plus a **Phase 4** covering the refinement work done afterwards.
+
+Status legend: `resolved` · `partial` · `superseded` (requirement intentionally changed) · `open`
+
+**Overall: 10 of 12 resolved** (1 partial, 1 open).
 
 ---
 
 ## Phase 0 — Critical blockers (keyboard / mobile / touch)
 
-**Progress:** `[....................] 0% (0/3)`
+**Progress:** `[####################] 100% (3/3)`
 
-| # | Category | Severity | Location | Finding | Impact | Suggested fix | Status |
-|---|----------|----------|----------|---------|--------|---------------|--------|
-| 1 | Navigation & Keyboard | High | `components/contacts/ContactTable.tsx:251` | Table rows use `onClick` on `<tr>` with no `role="button"`, `tabIndex`, or `onKeyDown`. Keyboard-only and screen-reader users cannot open a contact from the table. | Blocks keyboard users entirely from the primary list view. | Add `role="button" tabIndex={0}` + `onKeyDown={(e)=>{if(e.key==='Enter')onOpen(contact)}}` and an `aria-label`, or move the click to a focusable element. | open |
-| 2 | Mobile Layout | High | `components/contacts/columns.ts:13-18` | Phone, email, labels, expediente, updated, status are all `hiddenMobile`. On phones the table shows only "Nombre"; every other field is unreachable without opening the detail sheet. | Core contact data hidden on mobile; no card/list fallback for narrow screens. | Add a mobile card/list view, or keep phone + expediente visible at `sm`/`md` and expose hidden columns via a "More" toggle. | open |
-| 3 | Touch Targets | High | `components/contacts/ContactTable.tsx:280,374-425` | Action buttons use `p-1.5` with lucide `size={15}` and the fav-star is bare `size={15}` with no padding — below the 24×24 CSS px WCAG 2.1 target-size minimum. | Hard to tap accurately on phones; mis-taps on destructive actions (delete/purge). | Bump icons to `size={18–20}` and/or add padding so the hit area is ≥24×24 px; test on a real device. | open |
+| # | Category | Severity | Location | Finding | Resolution | Status |
+|---|----------|----------|----------|---------|------------|--------|
+| 1 | Navigation & Keyboard | High | `ContactTable.tsx` | Table rows used `onClick` on `<tr>` with no keyboard access, so keyboard-only and screen-reader users could not open a contact. | Resolved via a focusable element rather than a row role: every row now has an explicit **"Ver detalles"** button in the actions cell, and the row itself is a mouse-only convenience. See Phase 4 for why the row is deliberately *not* `role="button"`. | resolved |
+| 2 | Mobile Layout | High | `columns.ts`, `app/page.tsx` | Email/labels/updated/status were `hiddenMobile`, so on phones the table showed almost nothing. | Added `ContactMobileCard.tsx` — a dedicated narrow-screen list that renders **every** field (name, phone, email, labels, expediente, updated, sync status, actions). | resolved |
+| 3 | Touch Targets | High | `ContactQuickActions.tsx`, `ContactTable.tsx`, `ContactMobileCard.tsx` | `p-1` with 13px icons gave a ~21px hit area, below the 24×24 CSS px WCAG 2.2 AA minimum. | All icon buttons are now `p-2` + 16px glyph (≥24×24), and adjacent buttons are separated by `gap-2` (≥8px). | resolved |
 
 ---
 
 ## Phase 1 — Menus, overlays & focus
 
-**Progress:** `[....................] 0% (0/3)`
+**Progress:** `[##############------] 67% (2/3)`
 
-| # | Category | Severity | Location | Finding | Impact | Suggested fix | Status |
-|---|----------|----------|----------|---------|--------|---------------|--------|
-| 4 | Menus & Overlays | Medium | `components/contacts/ColumnVisibilityDropdown.tsx:72` | Declares `role="menu"` but has no `aria-activedescendant`, no arrow-key navigation, no focus-trap, `focus:outline-none` removes focus indicators, and focus isn't returned to the trigger on close. | Screen-reader and keyboard users cannot operate the column-picker reliably. | Implement full menu keyboard management (arrow keys, Enter/Space, focus return) or replace with a plain disclosure/checkbox list (`role="listbox"` or buttons). | open |
-| 5 | Menus & Overlays | Medium | `components/contacts/ContactDetailSheet.tsx:204-262`; `components/contacts/MobileSidebarSheet.tsx:33-39` | Sheets/modals open overlays without trapping focus or returning focus to the trigger on close. Tab can escape behind the overlay. | Keyboard users lose context; screen readers may announce background content. | Add focus containment (or at minimum restore focus to the trigger on close); give the sheet panel `aria-modal="true"` + `aria-labelledby` pointing at the `<h2>`. | open |
-| 6 | Focus & Scroll | Medium | `components/contacts/MobileSidebarSheet.tsx:24` | `document.body.style.overflow='hidden'` doesn't reliably lock scroll on iOS Safari. | Background page still scrolls behind the sheet on iPhone/iPad. | Add `touch-action: none` on the overlay and use a robust scroll-lock (`position: fixed` + `top: -scrollY`). | open |
+| # | Category | Severity | Location | Finding | Resolution | Status |
+|---|----------|----------|----------|---------|------------|--------|
+| 4 | Menus & Overlays | Medium | `ColumnVisibilityDropdown.tsx` | Menu lacked keyboard management, removed focus indicators and never returned focus to the trigger. | Rebuilt on native checkboxes with `aria-haspopup="listbox"`, `aria-expanded`, Escape handling and focus return to the trigger. Positioning now flips and clamps so it never runs off-screen. | resolved |
+| 5 | Menus & Overlays | Medium | `ContactDetailSheet.tsx` | Sheets opened without trapping focus or returning it to the trigger. | Partial: the panel has `aria-modal="true"` + `aria-labelledby`, and focus moves to the close button on open. **Still outstanding:** a real focus trap, and restoring focus to the originating row/card on close. | partial |
+| 6 | Focus & Scroll | Medium | `MobileSidebarSheet.tsx` | `document.body.style.overflow='hidden'` does not reliably lock scroll on iOS Safari. | Replaced with a robust lock: save `scrollY`, pin `body` with `position:fixed` + negative `top`, restore position and scroll on close, plus real `touch-none` on the overlay. | resolved |
 
 ---
 
 ## Phase 2 — Communications & announcements
 
-**Progress:** `[....................] 0% (0/4)`
+**Progress:** `[####################] 100% (4/4)`
 
-| # | Category | Severity | Location | Finding | Impact | Suggested fix | Status |
-|---|----------|----------|----------|---------|--------|---------------|--------|
-| 7 | Communications | Medium | `app/layout.tsx:50` (`format-detection content="telephone=no"`) | Phone numbers render as plain text; no `tel:` links, so tap-to-call is disabled from the table/sheet. | Users must manually copy/dial numbers on mobile. | Render the primary phone as `<a href={`tel:${digits}`}>` alongside the QuickActions chips. | open |
-| 8 | Communications | Low | `components/contacts/ContactTable.tsx:74-94` | Sort header buttons lack `aria-sort`, so screen readers can't convey the active column or direction. | Sort state opaque to assistive tech. | Add `aria-sort={active ? (dir==='asc'?'ascending':'descending'):'none'}` to each header button. | open |
-| 9 | Communications | Low | `components/contacts/ContactDetailSheet.tsx:175-184` | Clipboard copy swaps text/icon ("Copiado") but no `aria-live` region announces it. | Screen-reader users get no feedback that the ID was copied. | Wrap the status text in a polite `aria-live="polite"` region. | open |
-| 10 | Communications | Low | `components/contacts/ContactDetailSheet.tsx:286-313` | Icon-only sheet buttons (Agendar, Favorito, Imprimir, Papelera) rely on `title` only, which isn't reliably exposed to assistive tech. | Icon buttons unlabeled for screen readers. | Add explicit `aria-label` to each icon-only button. | open |
+| # | Category | Severity | Location | Finding | Resolution | Status |
+|---|----------|----------|----------|---------|------------|--------|
+| 7 | Communications | Medium | `ContactTable.tsx`, `ContactDetailSheet.tsx`, `ContactMobileCard.tsx` | Phone numbers were plain text / `tel:` only. | **Superseded.** WhatsApp is the clinic's primary channel, so the phone number now opens the WhatsApp conversation. Call (`tel:`) and SMS remain available as explicit shortcuts in the Telefono column and in the detail sheet. | superseded |
+| 8 | Communications | Low | `ContactTable.tsx` | Sort headers lacked `aria-sort`. | Added `aria-sort` reflecting the active column and direction. | resolved |
+| 9 | Communications | Low | `ContactDetailSheet.tsx` | Clipboard confirmation was not announced. | Wrapped the status text in an `aria-live="polite"` region. | resolved |
+| 10 | Communications | Low | `ContactDetailSheet.tsx` | Icon-only buttons relied on `title` alone. | Added explicit `aria-label` to every icon-only control. | resolved |
 
 ---
 
 ## Phase 3 — Configuration & hydration
 
-**Progress:** `[....................] 0% (0/2)`
+**Progress:** `[##########--------] 50% (1/2)`
 
-| # | Category | Severity | Location | Finding | Impact | Suggested fix | Status |
-|---|----------|----------|----------|---------|--------|---------------|--------|
-| 11 | Configuration | Low | `app/layout.tsx:49,64` | `suppressHydrationWarning` on `<html>` and `<body>` masks real hydration mismatches that can cause focus/order surprises on first paint. | Potential focus/reading-order issues hidden at load. | Resolve the underlying mismatch instead of suppressing. | open |
-| 12 | Configuration | Low | `src/lib/monolith.ts:9` | `MONOLITH_BASE` defaults to `https://app.dentaldiamondhn.com` when `NEXT_PUBLIC_MONOLITH_BASE` is unset. Non-prod environments silently link to production. | Dev/staging EHR buttons may redirect to production. | Require the env var or default to localhost/relative in non-prod. | open |
+| # | Category | Severity | Location | Finding | Resolution | Status |
+|---|----------|----------|----------|---------|------------|--------|
+| 11 | Configuration | Low | `app/layout.tsx` | `suppressHydrationWarning` on `<html>`/`<body>` can mask real hydration mismatches. | Not addressed. Both usages are documented in-code as intentional (next-themes applies the `dark` class after mount). Resolving it properly means moving theme selection server-side. | open |
+| 12 | Configuration | Low | `src/lib/monolith.ts` | `MONOLITH_BASE` defaulted to the production URL, so non-prod builds silently linked to production. | Already fixed: the constant now falls back to `''` outside production, so only production builds keep the production URL. | resolved |
+
+---
+
+## Phase 4 — Refinement after the original plan
+
+### 4a. WhatsApp redirect bugs
+
+| # | Finding | Resolution | Status |
+|---|---------|------------|--------|
+| 13 | Tapping a phone number opened the detail sheet instead of WhatsApp. The clickable parent re-rendered and unmounted the in-flight anchor, cancelling the queued navigation. | `stopPropagation()` on every interactive region inside the clickable card/row, plus a keydown guard so nested controls activate on their own. | resolved |
+| 14 | `net::ERR_UNKNOWN_URL_SCHEME` for `whatsapp://send/…` on Android. | Root cause was navigating the *current* WebView to `wa.me`, whose server redirect to `whatsapp://` the WebView then tried to load itself. The launcher now never navigates the document; see 4c. | resolved |
+| 15 | On web/PWA the launcher opened an unknown-protocol `whatsapp://` tab and never reached the `wa.me` fallback. | `@capacitor/app-launcher` ships a **web** implementation that resolves instead of throwing. Added `isNativeShell()` and made the web path synchronous. | resolved |
+
+### 4b. Performance
+
+| # | Finding | Resolution | Status |
+|---|---------|------------|--------|
+| 16 | Slow search. | The query re-ran on every keystroke, rebuilding a lowercase string per contact. Now debounced 250 ms while the input stays immediate. | resolved |
+| 17 | Sluggish list. `sm:hidden` + `hidden sm:block` only changes `display`, so **both** the table and the card list were mounted — 2 × N rows and 2 × N Lottie icons, all re-rendered per keystroke. | Branched on a media query (`useIsWide`) so exactly one view is mounted. | resolved |
+| 18 | Contact preview pane stuttered on open. | A framer-motion JS spring plus `backdrop-blur-2xl` on a full-height panel meant a large blur was recomputed every frame in the WebView. Replaced with a compositor-driven CSS transform and an opaque panel. | resolved |
+| 19 | Long lists paid full layout/paint for off-screen rows. | `content-visibility: auto` on mobile cards. | resolved |
+
+### 4c. Accessibility refinement
+
+| # | Finding | Resolution | Status |
+|---|---------|------------|--------|
+| 20 | `role="button"` on the card and the table row. That role is *children presentational*, and on a `<tr>` it also destroys row/cell semantics. | Removed `role`/`tabIndex`/`aria-label` from both wrappers; the click is now a mouse-only convenience and the accessible route is the "Ver detalles" button. Verified in Chrome's accessibility tree: cell roles (`LayoutTableCell`) are restored and the row name is no longer the concatenation of every cell. | resolved |
+| 21 | Table action buttons were `opacity-0 group-hover:`, i.e. invisible but still tappable, which caused mis-taps on destructive actions on touch tablets. | Always visible below `md`, and revealed on hover **or keyboard focus** at `md+`. | resolved |
 
 ---
 
 ## Notes
 
-- `diamond-link-original` (monolith) patient form: labels are properly associated via `htmlFor`↔`id` (113 `<label>` elements incl. `#telefono`/`#contacto_telefono`); no `position: fixed` introduced; the recent EHR-link commits added no new a11y regressions.
-- diamond-contacts is a Capacitor mobile shell (`capacitor.config.ts` `server.url`), so mobile layout and touch-target findings apply directly to the installed app, not just the web view.
+- `diamond-contacts` is a Capacitor shell (`capacitor.config.ts` `server.url`), so mobile layout and touch-target findings apply to the installed app, not just the web view.
+- The same accessibility, WhatsApp and touch-target work has been mirrored into `diamond-link-original` (the monolith); commits there are marked `(mirrors diamond-contacts)`.
+- `improvement_contacts.md` is kept in sync as the single source of truth for these findings.
 
 ## Suggested execution order
 
-1. Phase 0 — Critical blockers (F1–F3): blocks keyboard users entirely.
-2. Phase 1 — Menus, overlays, focus (F4–F6): high-traffic controls.
-3. Phase 2 — Communications & announcements (F7–F10).
-4. Phase 3 — Configuration & hydration (F11–F12).
+1. Phase 3 #11 — remove `suppressHydrationWarning` by resolving the theme-class mismatch server-side (only remaining item from the original plan).
+2. Phase 1 #5 — add a real focus trap to `ContactDetailSheet` and restore focus to the originating row/card on close.

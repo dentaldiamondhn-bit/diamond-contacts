@@ -42,22 +42,17 @@ export function ContactMobileCard({
   const pendingContactIds = new Set<string>();
 
   return (
+    // Deliberately NOT role="button"/tabIndex. The button role is
+    // "children presentational", which strips the WhatsApp link, the call/SMS
+    // links, the favourite star and the action buttons out of the accessibility
+    // tree — so screen-reader users could Tab into controls that AT then refused
+    // to describe. The card-wide click stays as a mouse-only convenience; the
+    // accessible route to the detail sheet is the "Ver detalles" button below.
     <article
-      role="button"
-      tabIndex={0}
-      aria-label={`Abrir contacto ${name}`}
       onClick={() => onOpen(contact)}
-      onKeyDown={(e) => {
-        if (e.key !== 'Enter') return
-        // Nested controls (links, chips, buttons) activate themselves; only the
-        // card itself opens the detail sheet, otherwise a single Enter both
-        // activates the control and bubbles here.
-        if (e.target !== e.currentTarget) return
-        onOpen(contact);
-      }}
       className={cn(
         'flex flex-col gap-3 border border-zinc-200/70 dark:border-zinc-800/40 rounded-xl p-4 transition-colors',
-        'hover:bg-slate-100/60 dark:hover:bg-slate-800/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500',
+        'hover:bg-slate-100/60 dark:hover:bg-slate-800/30 cursor-pointer',
         // Skip layout/paint for rows scrolled out of view; a few hundred
         // rendered cards were a measurable cost while filtering.
         '[content-visibility:auto] [contain-intrinsic-size:auto_180px]',

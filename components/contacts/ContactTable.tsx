@@ -253,18 +253,14 @@ export function ContactTable({
               return (
                 <tr
                   key={contact.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Abrir contacto ${name}`}
+                  // Deliberately NOT role="button"/tabIndex. Beyond making nested
+                  // controls presentational, that role on a <tr> destroys the
+                  // row/cell semantics screen readers rely on to read a table.
+                  // The row click is a mouse-only convenience; keyboard users open
+                  // the sheet with the "Ver detalles" button in the actions cell.
                   onClick={() => onOpen(contact)}
-                  onKeyDown={(e) => {
-                    // Nested controls (WhatsApp/tel/sms links, buttons) handle
-                    // their own activation; only the row itself opens the sheet.
-                    if (e.key !== 'Enter' || e.target !== e.currentTarget) return;
-                    onOpen(contact);
-                  }}
                   className={cn(
-                    'group cursor-pointer border-b border-slate-200/70 dark:border-slate-800/40 transition-colors outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400',
+                    'group cursor-pointer border-b border-slate-200/70 dark:border-slate-800/40 transition-colors',
                     selected ? 'bg-blue-50/70 dark:bg-blue-500/10' : 'hover:bg-slate-100/60 dark:hover:bg-slate-800/30',
                   )}
                 >
@@ -397,7 +393,11 @@ export function ContactTable({
                     )}
                   </td>
                   <td className="py-3 pr-4 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="inline-flex items-center gap-2 sm:gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Always visible below md and on keyboard focus: `opacity-0` alone hid the
+                      row actions while leaving them tappable, which caused mis-taps
+                      on destructive actions on touch tablets. gap-2 keeps >= 8px
+                      between adjacent icon buttons. */}
+                    <div className="inline-flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
                       {isTrash ? (
                         <>
                           <button
