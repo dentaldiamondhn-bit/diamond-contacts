@@ -39,6 +39,7 @@ import { ContactSidebar } from '@/components/contacts/ContactSidebar';
 import { MobileSidebarSheet } from '@/components/contacts/MobileSidebarSheet';
 import { COLUMNS } from '@/components/contacts/columns';
 import { ContactTable } from '@/components/contacts/ContactTable';
+import { ContactMobileCard } from '@/components/contacts/ContactMobileCard';
 import { ColumnVisibilityDropdown } from '@/components/contacts/ColumnVisibilityDropdown';
 import { ContactDetailSheet } from '@/components/contacts/ContactDetailSheet';
 import { ContactEditorModal } from '@/components/contacts/ContactEditorModal';
@@ -411,7 +412,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
   const loading = contacts === undefined;
 
   return (
-    <div className="relative flex h-full min-h-0 bg-white/40 dark:bg-slate-950/40">
+    <div className="relative flex min-h-dvh min-h-0 bg-white/40 dark:bg-slate-950/40">
       <ContactSidebar
         labels={labelList}
         activeFilter={filter}
@@ -471,69 +472,122 @@ const labelList = useMemo(() => labels ?? [], [labels]);
         {/* Content */}
         <div className="flex-1 min-h-0 p-3">
           <div className="h-full overflow-hidden rounded-2xl glass-card">
-            {loading ? (
-              <ContactTable
-                contacts={[]}
-                selection={prunedSelection}
-                columnVisibility={columnVisibility}
-                sort={sort}
-                isTrash={isTrash}
-                loading
-                labelMap={labelMap}
-                isOnline={isOnline}
-                onToggleSort={toggleSort}
-                onToggleSelectAll={toggleSelectAll}
-                onToggleSelect={toggleSelect}
-                onOpen={setSheetContact}
-                onQuickEdit={() => undefined}
-                onOpenEhr={() => undefined}
-                onSchedule={setAppointmentContact}
-                onDelete={() => undefined}
-                onRestore={() => undefined}
-                onToggleFavorite={() => undefined}
-                onExportSelected={() => undefined}
-                onMergeSelected={() => undefined}
-                onArchiveSelected={() => undefined}
-                onDeleteSelected={() => undefined}
-                onRestoreSelected={() => undefined}
-                onPurgeSelected={() => undefined}
-              />
-            ) : sorted.length === 0 ? (
-              <EmptyState
-                isTrash={isTrash}
-                isLabel={typeof filter === 'object'}
-                isHistory={filter === 'recentHistory'}
-                onCreate={() => openEditor(null)}
-                searchTerm={search}
-              />
-            ) : (
-              <ContactTable
-                contacts={sorted}
-                selection={prunedSelection}
-                columnVisibility={columnVisibility}
-                sort={sort}
-                isTrash={isTrash}
-                loading={false}
-                labelMap={labelMap}
-                isOnline={isOnline}
-                onToggleSort={toggleSort}
-                onToggleSelectAll={toggleSelectAll}
-                onToggleSelect={toggleSelect}
-                onOpen={setSheetContact}
-                onQuickEdit={(c) => openEditor(c)}
-                onOpenEhr={openEhr}
-                onSchedule={setAppointmentContact}
-                onDelete={handleDelete}
-                onRestore={handleRestore}
-                onToggleFavorite={handleToggleFavorite}
-                onExportSelected={exportSelected}
-                onMergeSelected={mergeSelected}
-                onArchiveSelected={archiveSelected}
-                onDeleteSelected={trashSelected}
-                onRestoreSelected={restoreSelected}
-                onPurgeSelected={purgeSelected}
-              />
-            )}
+            {/* Mobile card/list view — all fields visible on narrow screens */}
+            <div className="sm:hidden p-3">
+              {loading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex flex-col gap-3 border border-zinc-200/70 dark:border-zinc-800/40 rounded-xl p-4 animate-pulse">
+                      <div className="h-10 w-10 rounded-full bg-zinc-200 dark:bg-zinc-800 shrink-0" />
+                      <div className="space-y-1.5 flex-1">
+                        <div className="h-3 w-3/4 rounded bg-zinc-200 dark:bg-zinc-800" />
+                        <div className="h-2.5 w-1/2 rounded bg-zinc-200 dark:bg-zinc-800" />
+                      </div>
+                      <div className="h-8 w-24 rounded bg-zinc-200 dark:bg-zinc-800" />
+                      <div className="flex gap-1">
+                        <div className="h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-800" />
+                        <div className="h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-800" />
+                        <div className="h-8 w-8 rounded bg-zinc-200 dark:bg-zinc-800" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : sorted.length === 0 ? (
+                <EmptyState
+                  isTrash={isTrash}
+                  isLabel={typeof filter === 'object'}
+                  isHistory={filter === 'recentHistory'}
+                  onCreate={() => openEditor(null)}
+                  searchTerm={search}
+                />
+              ) : (
+                <div className="space-y-3">
+                  {sorted.map((contact) => (
+                    <ContactMobileCard
+                      key={contact.id}
+                      contact={contact}
+                      labelMap={labelMap}
+                      isOnline={isOnline}
+                      isTrash={isTrash}
+                      onOpen={setSheetContact}
+                      onOpenEhr={openEhr}
+                      onSchedule={setAppointmentContact}
+                      onDelete={handleDelete}
+                      onRestore={handleRestore}
+                      onToggleFavorite={handleToggleFavorite}
+                      onToggleLabel={handleToggleLabel}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop/tablet table view */}
+            <div className="hidden sm:block">
+              {loading ? (
+                <ContactTable
+                  contacts={[]}
+                  selection={prunedSelection}
+                  columnVisibility={columnVisibility}
+                  sort={sort}
+                  isTrash={isTrash}
+                  loading
+                  labelMap={labelMap}
+                  isOnline={isOnline}
+                  onToggleSort={toggleSort}
+                  onToggleSelectAll={toggleSelectAll}
+                  onToggleSelect={toggleSelect}
+                  onOpen={setSheetContact}
+                  onQuickEdit={() => undefined}
+                  onOpenEhr={() => undefined}
+                  onSchedule={setAppointmentContact}
+                  onDelete={() => undefined}
+                  onRestore={() => undefined}
+                  onToggleFavorite={() => undefined}
+                  onExportSelected={() => undefined}
+                  onMergeSelected={() => undefined}
+                  onArchiveSelected={() => undefined}
+                  onDeleteSelected={() => undefined}
+                  onRestoreSelected={() => undefined}
+                  onPurgeSelected={() => undefined}
+                />
+              ) : sorted.length === 0 ? (
+                <EmptyState
+                  isTrash={isTrash}
+                  isLabel={typeof filter === 'object'}
+                  isHistory={filter === 'recentHistory'}
+                  onCreate={() => openEditor(null)}
+                  searchTerm={search}
+                />
+              ) : (
+                <ContactTable
+                  contacts={sorted}
+                  selection={prunedSelection}
+                  columnVisibility={columnVisibility}
+                  sort={sort}
+                  isTrash={isTrash}
+                  loading={false}
+                  labelMap={labelMap}
+                  isOnline={isOnline}
+                  onToggleSort={toggleSort}
+                  onToggleSelectAll={toggleSelectAll}
+                  onToggleSelect={toggleSelect}
+                  onOpen={setSheetContact}
+                  onQuickEdit={(c) => openEditor(c)}
+                  onOpenEhr={openEhr}
+                  onSchedule={setAppointmentContact}
+                  onDelete={handleDelete}
+                  onRestore={handleRestore}
+                  onToggleFavorite={handleToggleFavorite}
+                  onExportSelected={exportSelected}
+                  onMergeSelected={mergeSelected}
+                  onArchiveSelected={archiveSelected}
+                  onDeleteSelected={trashSelected}
+                  onRestoreSelected={restoreSelected}
+                  onPurgeSelected={purgeSelected}
+                />
+              )}
+            </div>
           </div>
         </div>
       </main>

@@ -32,15 +32,34 @@ interface ColumnVisibilityDropdownProps {
  */
 export function ColumnVisibilityDropdown({ columns, visible, onToggle }: ColumnVisibilityDropdownProps) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; flip: boolean } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Menu width (w-56 = 224px) plus viewport padding, used to flip/clamp the
+  // picker so it never runs off the right or bottom edge on narrow phones.
+  const MENU_WIDTH = 224;
+  const VIEWPORT_PADDING = 8;
+  const MENU_HEIGHT_EST = 260;
 
   const updatePosition = useCallback(() => {
     const el = triggerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    setPos({ top: rect.bottom + 8, left: rect.right });
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    const flip = rect.right + MENU_WIDTH > viewportWidth - VIEWPORT_PADDING;
+    let left = flip ? rect.left : rect.right - MENU_WIDTH;
+    left = Math.max(VIEWPORT_PADDING, Math.min(left, viewportWidth - MENU_WIDTH - VIEWPORT_PADDING));
+
+    let top = rect.bottom + 8;
+    if (top + MENU_HEIGHT_EST > viewportHeight) {
+      top = Math.max(VIEWPORT_PADDING, rect.top - MENU_HEIGHT_EST - 8);
+    }
+    top = Math.max(VIEWPORT_PADDING, Math.min(top, viewportHeight - MENU_HEIGHT_EST - VIEWPORT_PADDING));
+
+    setPos({ top, left, flip });
   }, []);
 
   const returnFocus = useCallback(() => {
@@ -77,12 +96,18 @@ export function ColumnVisibilityDropdown({ columns, visible, onToggle }: ColumnV
   const menu =
     open && pos
       ? createPortal(
-          <div
-            ref={menuRef}
-            aria-label="Columnas"
-            style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)' }}
-            className="z-[9999] w-56 min-w-[200px] rounded-xl glass-card shadow-2xl py-1"
-          >
+            <div
+              ref={menuRef}
+              aria-label="Columnas"
+              style={{
+                position: 'fixed',
+                top: pos!.top,
+                left: pos!.left,
+                transform: pos!.flip ? 'translateX(0)' : 'translateX(-100%)',
+                transformOrigin: pos!.flip ? 'left' : 'right',
+              }}
+              className="z-[9999] w-56 min-w-[200px] rounded-xl glass-card shadow-2xl py-1"
+            >
             <p className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
               Columnas
             </p>

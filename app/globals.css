@@ -449,7 +449,7 @@ body {
 /* Ensure smooth scrolling on mobile devices */
 html, body {
   height: auto;
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -459,7 +459,7 @@ html, body {
 @supports (-webkit-touch-callout: none) {
   html, body {
     height: auto;
-    min-height: 100vh;
+    min-height: 100dvh;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
   }

@@ -16,11 +16,11 @@ interface ContactQuickActionsProps {
 export function ContactQuickActions({ phone, patientName, size = 'md', className }: ContactQuickActionsProps) {
   const btn = cn(
     'rounded-full transition-colors',
-    size === 'sm' ? 'p-1' : 'p-2',
+    size === 'sm' ? 'p-2' : 'p-2',
   );
 
   return (
-    <div className={cn('flex items-center gap-1', className)}>
+    <div className={cn('flex items-center gap-2', className)}>
       <button
         type="button"
         onClick={() => void openWhatsAppDirectly(phone, whatsappGreeting(patientName))}
@@ -28,7 +28,7 @@ export function ContactQuickActions({ phone, patientName, size = 'md', className
         title={`Abrir WhatsApp con ${patientName || 'el paciente'}`}
         aria-label="Abrir WhatsApp"
       >
-        <Send size={size === 'sm' ? 13 : 16} />
+        <Send size={16} />
       </button>
       <a
         href={`tel:${formatToE164(phone, '+504')}`}
@@ -36,7 +36,7 @@ export function ContactQuickActions({ phone, patientName, size = 'md', className
         title="Llamar al paciente"
         aria-label="Llamar"
       >
-        <Phone size={size === 'sm' ? 13 : 16} />
+        <Phone size={16} />
       </a>
       <a
         href={smsDeepLink(phone)}
@@ -44,7 +44,7 @@ export function ContactQuickActions({ phone, patientName, size = 'md', className
         title="Enviar SMS"
         aria-label="Enviar SMS"
       >
-        <MessageSquare size={size === 'sm' ? 13 : 16} />
+        <MessageSquare size={16} />
       </a>
     </div>
   );
