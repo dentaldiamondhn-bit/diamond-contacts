@@ -1,10 +1,15 @@
 'use client';
 
-import { ExternalLink, FileText, Mail, Phone, Star, StarOff, Cloud, CloudOff, CheckCircle2, Trash2, RotateCcw, Eye, CalendarPlus } from 'lucide-react';
+import { ExternalLink, FileText, Mail, Send, Star, StarOff, Cloud, CloudOff, CheckCircle2, Trash2, RotateCcw, Eye, CalendarPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel } from '@/lib/contacts/db';
 import { fullName, primaryPhone, primaryEmail, formatDate } from '@/lib/contacts/db';
 import { formatPhoneDisplay } from '@/lib/contacts/vcard';
+import {
+  whatsappHref,
+  openWhatsAppConversation,
+  usesNativeWhatsAppIntent,
+} from '@/lib/contacts/vcard';
 import { ContactQuickActions } from './ContactQuickActions';
 import { ContactAvatar } from './ContactAvatar';
 
@@ -82,10 +87,18 @@ export function ContactMobileCard({
       {/* Phone + quick actions */}
       {phone && (
         <div className="flex items-center gap-2">
-          <Phone size={14} className="shrink-0 text-zinc-400" />
+          <Send size={14} className="shrink-0 text-emerald-500" />
           <a
-            href={`tel:${phone.phone_number}`}
-            className="font-mono text-sm tracking-tight text-zinc-600 dark:text-zinc-300 hover:underline hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+            href={whatsappHref(phone.phone_number) || undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              if (!usesNativeWhatsAppIntent()) return
+              e.preventDefault()
+              openWhatsAppConversation(phone.phone_number)
+            }}
+            className="font-mono text-sm tracking-tight text-zinc-600 dark:text-zinc-300 hover:underline hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+            title={`Abrir conversación de WhatsApp con ${name || 'el paciente'}`}
           >
             {formatPhoneDisplay(phone.phone_number)}
           </a>

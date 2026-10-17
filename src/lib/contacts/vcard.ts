@@ -324,6 +324,62 @@ export async function openWhatsAppDirectly(
   window.open(httpsUrl, '_blank', 'noopener,noreferrer')
 }
 
+/**
+ * Normalizes a number specifically for WhatsApp deep links.
+ *
+ * `formatToE164` is the canonical formatter and is intentionally left alone for
+ * vCard/DAV export and `tel:`/`sms:` links. WhatsApp, however, rejects any path
+ * with a leading zero, so a national number written as "0999887766" would
+ * otherwise produce `wa.me/0999887766`. Strip the stray 0 and restore the
+ * default country code when what remains is national-length.
+ */
+function normalizeWhatsAppNumber(phone: string, defaultCountry = '+504'): string {
+  const e164 = formatToE164(phone, defaultCountry)
+  if (!e164) return ''
+  if (!e164.startsWith('+0')) return e164
+  const rest = e164.slice(2)
+  const cc = defaultCountry.replace(/[^\d]/g, '')
+  if (!cc || rest.startsWith(cc)) return e164
+  return rest.length <= 10 ? `+${cc}${rest}` : `+${rest}`
+}
+
+/**
+ * Canonical WhatsApp conversation link for a contact:
+ * `https://wa.me/<international-digits>[?text=…]`. WhatsApp redirects this to the
+ * existing conversation (or a new one), so it is the safe href for the phone
+ * number in the list and the detail sheet. Returns '' when there is no usable
+ * number, so callers can fall back to plain text.
+ */
+export function whatsappHref(phone: string, text = '', defaultCountry = '+504'): string {
+  const digits = normalizeWhatsAppNumber(phone, defaultCountry).replace('+', '')
+  if (!digits) return ''
+  return text ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : `https://wa.me/${digits}`
+}
+
+/** True when running inside the Capacitor shell, where a `whatsapp://` intent is
+ *  needed because `https://wa.me` would just load a web page in the WebView. */
+export function usesNativeWhatsAppIntent(): boolean {
+  return Capacitor.isNativePlatform()
+}
+
+/**
+ * Opens an existing (or new) WhatsApp conversation with no pre-filled text.
+ * Native shells dispatch the `whatsapp://send` intent so WhatsApp itself opens;
+ * web/PWA hand the `wa.me` link to the OS.
+ */
+export function openWhatsAppConversation(phone: string, defaultCountry = '+504'): void {
+  const digits = normalizeWhatsAppNumber(phone, defaultCountry).replace('+', '')
+  if (!digits) return
+  const url = `https://wa.me/${digits}`
+  if (Capacitor.isNativePlatform()) {
+    void AppLauncher.openUrl({ url: `whatsapp://send?phone=${digits}` }).catch(() => {
+      void AppLauncher.openUrl({ url }).catch(() => {})
+    })
+    return
+  }
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 export function smsDeepLink(phone: string, body?: string): string {
   const cleaned = formatToE164(phone, '+504')
   return cleaned
