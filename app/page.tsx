@@ -31,6 +31,7 @@ import {
   toggleFavoriteLocal,
   updateLocalContact,
   updateLocalLabel,
+  recoverErroneousTombstones,
 } from '@/lib/contacts/syncEngine';
 import { exportContacts } from '@/lib/contacts/vcard';
 import { monolithMenuUrl } from '@/lib/monolith';
@@ -200,9 +201,9 @@ export default function ContactosPage() {
 
   const counts = useMemo(
     () => ({
-      all: activeBase?.filter((c) => !c.is_archived).length ?? 0,
-      favorites: activeBase?.filter((c) => !c.is_archived && c.is_favorite).length ?? 0,
-      archived: activeBase?.filter((c) => c.is_archived).length ?? 0,
+      all: activeBase?.filter((c) => !c.is_archived && !c.deleted).length ?? 0,
+      favorites: activeBase?.filter((c) => !c.is_archived && !c.deleted && c.is_favorite).length ?? 0,
+      archived: activeBase?.filter((c) => c.is_archived && !c.deleted).length ?? 0,
       recentHistory: recentHistoryCount ?? 0,
       trash: trashCount ?? 0,
     }),
@@ -390,7 +391,10 @@ const labelList = useMemo(() => labels ?? [], [labels]);
     };
   }, [appointmentContact]);
 
-  const handleResync = () => void syncRef.current?.syncNow();
+  const handleResync = async () => {
+    await recoverErroneousTombstones(userId);
+    void syncRef.current?.syncNow();
+  };
 
   const handleSyncNative = async () => {
     if (!activeBase) return;

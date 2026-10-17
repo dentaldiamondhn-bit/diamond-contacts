@@ -519,7 +519,6 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
   if (junctionsRes.error) throw new Error(junctionsRes.error.message)
 
   const junctionRows = (Array.isArray(junctionsRes.data) ? junctionsRes.data : []) as RemoteJunctionRow[]
-  const remoteIds = new Set(rows.map((r) => r.id))
 
   // Reconcile labels
   const junctionByContact = new Map<string, string[]>()
@@ -611,18 +610,20 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
     }
   }
 
-  // Tombstone any synced local rows that no longer exist remotely.
-  //
-  // "No longer exists remotely" is only knowable when the server actually
-  // returned rows. An empty result is indistinguishable from "RLS filtered
-  // everything out" or "no Clerk token was attached", and acting on it used to
-  // flip every local contact into the trash — devices that pulled while
-  // unauthorized silently went to 0 contacts. If the server has nothing and we
-  // still hold data, skip the destructive half of the reconcile and retry later.
+  // Collect remote contact IDs that were explicitly deleted (have deleted_at).
+  // We only tombstone local rows for those, never for contacts merely missing
+  // from a single pull (which can happen during RLS token timing / transient
+  // network issues). Tombstoning a merely-missing contact is how devices end
+  // up with different contact counts.
+  const remoteDeletedIds = new Set(
+    rows.filter((r) => r.deleted_at).map((r) => r.id),
+  )
+
+  // Tombstone any synced local rows that the remote explicitly deleted.
   const localRows = await db.contacts.where('user_id').equals(userId).toArray()
   if (authorized && (rows.length > 0 || localRows.length === 0)) {
     for (const local of localRows) {
-      if (local.synced === 1 && !remoteIds.has(local.id) && local.deleted === 0) {
+      if (local.synced === 1 && !local.deleted && remoteDeletedIds.has(local.id)) {
         await db.contacts.update(local.id, { deleted: 1, deleted_at: new Date().toISOString() })
       }
     }
@@ -1134,9 +1135,44 @@ async function runDeleteLocalLabel(userId: string, id: string): Promise<void> {
 export async function countPendingSync(userId: string): Promise<number> {
   if (!userId) return 0
   const rows = await db.contacts.where('user_id').equals(userId).toArray()
-  const unsynced = rows.filter((c) => c.synced === 0).length
+  const unsynced = rows.filter((c) => c.synced === 0 && c.deleted === 0).length
   const outbox = await db.offlineOutbox.where('user_id').equals(userId).count()
   return unsynced + outbox
+}
+
+/**
+ * Recovers contacts that were erroneously tombstoned by the pull reconcile.
+ *
+ * A contact tombstoned by reconcile has `deleted === 1` and `synced === 1`
+ * (never pushed, since reconcile never marks synced === 0). A contact the
+ * user explicitly deleted locally has `deleted === 1` and `synced === 0`
+ * (waiting to be pushed). We only recover the former — those that were never
+ * meant to be deleted by the user.
+ *
+ * After calling this, run `flushOfflineOutbox` + `pushLocalChanges` + 
+ * `pullRemoteContacts` (i.e. `syncNow()`) to re-create them on Supabase and
+ * re-pull on every device.
+ */
+export async function recoverErroneousTombstones(userId: string): Promise<number> {
+  if (!userId) return 0
+  const tombstoned = await db.contacts
+    .where('user_id')
+    .equals(userId)
+    .filter((c) => c.deleted === 1 && c.synced === 1)
+    .toArray()
+
+  if (tombstoned.length === 0) return 0
+
+  await db.transaction('rw', db.contacts, async () => {
+    for (const c of tombstoned) {
+      await db.contacts.update(c.id, { deleted: 0, deleted_at: null, synced: 0 })
+    }
+  })
+
+  console.info(
+    `[sync] recuperados ${tombstoned.length} contacto(s) tombstoneados por error`,
+  )
+  return tombstoned.length
 }
 
 /**
