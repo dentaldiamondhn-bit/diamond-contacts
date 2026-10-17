@@ -4,7 +4,7 @@ Findings from the original UI/UX review of `diamond-contacts` (standalone Capaci
 
 Status legend: `resolved` · `partial` · `superseded` (requirement intentionally changed) · `open`
 
-**Overall: 10 of 12 resolved** (1 partial, 1 open).
+**Overall: 11 of 12 resolved** (1 partial by design).
 
 ---
 
@@ -22,12 +22,12 @@ Status legend: `resolved` · `partial` · `superseded` (requirement intentionall
 
 ## Phase 1 — Menus, overlays & focus
 
-**Progress:** `[##############------] 67% (2/3)`
+**Progress:** `[####################] 100% (3/3)`
 
 | # | Category | Severity | Location | Finding | Resolution | Status |
 |---|----------|----------|----------|---------|------------|--------|
 | 4 | Menus & Overlays | Medium | `ColumnVisibilityDropdown.tsx` | Menu lacked keyboard management, removed focus indicators and never returned focus to the trigger. | Rebuilt on native checkboxes with `aria-haspopup="listbox"`, `aria-expanded`, Escape handling and focus return to the trigger. Positioning now flips and clamps so it never runs off-screen. | resolved |
-| 5 | Menus & Overlays | Medium | `ContactDetailSheet.tsx` | Sheets opened without trapping focus or returning it to the trigger. | Partial: the panel has `aria-modal="true"` + `aria-labelledby`, and focus moves to the close button on open. **Still outstanding:** a real focus trap, and restoring focus to the originating row/card on close. | partial |
+| 5 | Menus & Overlays | Medium | `ContactDetailSheet.tsx`, `MobileSidebarSheet.tsx` | Sheets opened without trapping focus or returning it to the trigger. | Added `hooks/useFocusTrap.ts`: Tab / Shift+Tab are confined to the overlay (capture-phase listener, so a nested control cannot swallow Tab), and focus returns to the element that opened it on close. Applied to both overlays. Verified in headless Chrome: forward/backward wrap, no escape to the page behind, and restore on close. | resolved |
 | 6 | Focus & Scroll | Medium | `MobileSidebarSheet.tsx` | `document.body.style.overflow='hidden'` does not reliably lock scroll on iOS Safari. | Replaced with a robust lock: save `scrollY`, pin `body` with `position:fixed` + negative `top`, restore position and scroll on close, plus real `touch-none` on the overlay. | resolved |
 
 ---
@@ -47,11 +47,11 @@ Status legend: `resolved` · `partial` · `superseded` (requirement intentionall
 
 ## Phase 3 — Configuration & hydration
 
-**Progress:** `[##########--------] 50% (1/2)`
+**Progress:** `[##########--------] 50% (1/2)` *(the remaining item is partial by design — see below)*
 
 | # | Category | Severity | Location | Finding | Resolution | Status |
 |---|----------|----------|----------|---------|------------|--------|
-| 11 | Configuration | Low | `app/layout.tsx` | `suppressHydrationWarning` on `<html>`/`<body>` can mask real hydration mismatches. | Not addressed. Both usages are documented in-code as intentional (next-themes applies the `dark` class after mount). Resolving it properly means moving theme selection server-side. | open |
+| 11 | Configuration | Low | `app/layout.tsx` | `suppressHydrationWarning` on `<html>`/`<body>` can mask real hydration mismatches. | Partially resolved by design. The `<body>` suppression was **removed** — nothing renders a theme-dependent class on `<body>` and nothing mutates `body.classList`, so it was suppressing nothing; a real `<body>` mismatch would now surface. Verified in the browser: 0 hydration warnings, `document.documentElement` resolves to `light`. The `<html>` suppression is kept, because next-themes (`attribute="class"`) genuinely writes to `documentElement` after mount. Removing it would require persisting the theme in a cookie and rendering the class server-side, which needs `cookies()` in this layout and opts every route out of static prerendering — a real cost for a cosmetic gain. | partial |
 | 12 | Configuration | Low | `src/lib/monolith.ts` | `MONOLITH_BASE` defaulted to the production URL, so non-prod builds silently linked to production. | Already fixed: the constant now falls back to `''` outside production, so only production builds keep the production URL. | resolved |
 
 ---

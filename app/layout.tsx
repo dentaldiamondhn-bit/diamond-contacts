@@ -43,9 +43,17 @@ export default function RootLayout({
     >
       <html
         lang="es"
-        // next-themes applies a `dark` class to <html> after mount based on the
-        // user's stored/system theme preference. The server can't know that
-        // preference, so this is an intentional, known hydration mismatch.
+        // next-themes (attribute="class") writes the resolved theme onto
+        // documentElement after mount, from localStorage / the system
+        // preference. The server cannot know that value, so <html> legitimately
+        // differs on the client and React would warn. This suppression is scoped
+        // to <html> only, and is the mechanism next-themes documents.
+        //
+        // The fully "mismatch-free" alternative is to persist the theme in a
+        // cookie and render the class server-side; that needs `cookies()` in this
+        // layout, which opts every route out of static prerendering for a
+        // cosmetic gain. Left deliberately unimplemented - see
+        // improvement_contacts.md (#11).
         suppressHydrationWarning
       >
         <head>
@@ -64,12 +72,11 @@ export default function RootLayout({
         </head>
         <body
           className={inter.className}
-          // next-themes applies a `dark` class to <html>/<body> after mount based on
-          // the user's stored/system theme preference. The server can't know that
-          // preference, so this is an intentional, known hydration mismatch.
-          // Suppressing here is deliberate; do not remove without addressing the
-          // theme-class mismatch first.
-          suppressHydrationWarning
+          // No suppressHydrationWarning here on purpose. next-themes is
+          // configured with attribute="class", which writes the theme class to
+          // document.documentElement only - nothing in this tree renders a
+          // theme-dependent class on <body>, and nothing mutates body.classList.
+          // So a hydration mismatch on <body> would be a real bug worth seeing.
         >
           <SupabaseTokenBridge />
           <ThemeProvider>

@@ -39,6 +39,7 @@ import { whatsappHref, openWhatsAppConversation, isNativeShell } from '@/lib/con
 import { meaningfulMedicalTags } from '@/lib/contacts/patientLink';
 import { monolithMenuUrl } from '@/lib/monolith';
 import AnimatedWhatsApp from '@/components/AnimatedWhatsApp';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { PatientLinkModal } from './PatientLinkModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
 import { ContactAvatar } from './ContactAvatar';
@@ -160,6 +161,10 @@ export function ContactDetailSheet({
 
   const open = !!contact;
 
+  // Declared before the focus effect below so it records the element that opened
+  // the sheet (the row / "Ver detalles" button) before focus is moved inside.
+  const panelRef = useFocusTrap<HTMLElement>(open);
+
   // Move focus into the sheet when it opens so keyboard users are not lost.
   useEffect(() => {
     if (!open) return;
@@ -223,6 +228,7 @@ export function ContactDetailSheet({
             aria-hidden
           />
             <aside
+              ref={panelRef}
               aria-modal="true"
               aria-labelledby="contact-sheet-title"
               className="sheet-panel fixed right-0 top-0 bottom-0 z-50 w-full max-w-md flex flex-col bg-white dark:bg-slate-900 border-l border-white/40 dark:border-white/5 shadow-2xl animate-slide-in-right"

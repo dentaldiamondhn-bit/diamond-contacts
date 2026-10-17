@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface MobileSidebarSheetProps {
   open: boolean;
@@ -20,6 +21,10 @@ interface MobileSidebarSheetProps {
  * clears notches, status bars and gesture indicators on the Capacitor shell.
  */
 export function MobileSidebarSheet({ open, onClose, children }: MobileSidebarSheetProps) {
+  // Confine Tab to the drawer and restore focus to the hamburger on close, so
+  // keyboard users are not dropped behind the overlay.
+  const panelRef = useFocusTrap<HTMLDivElement>(open);
+
   useEffect(() => {
     if (!open) return;
     const scrollY = window.scrollY;
@@ -56,7 +61,10 @@ export function MobileSidebarSheet({ open, onClose, children }: MobileSidebarShe
         onClick={onClose}
         aria-hidden
       />
-      <div className="absolute inset-y-0 left-0 flex w-80 max-w-[85vw] animate-slide-in-left shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+      <div
+        ref={panelRef}
+        className="absolute inset-y-0 left-0 flex w-80 max-w-[85vw] animate-slide-in-left shadow-2xl pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+      >
         {children}
       </div>
     </div>
