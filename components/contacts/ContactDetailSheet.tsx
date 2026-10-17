@@ -159,7 +159,6 @@ export function ContactDetailSheet({
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const open = !!contact;
-  if (!contact) return null;
 
   // Move focus into the sheet when it opens so keyboard users are not lost.
   useEffect(() => {
@@ -169,6 +168,8 @@ export function ContactDetailSheet({
       closeButtonRef.current = null;
     };
   }, [open]);
+
+  if (!contact) return null;
 
   const name = fullName(contact);
   const label = (id: string) => labels.find((l) => l.id === id);
