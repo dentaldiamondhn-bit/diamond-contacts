@@ -473,7 +473,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
         <div className="flex-1 min-h-0 p-3">
           <div className="h-full overflow-hidden rounded-2xl glass-card">
             {/* Mobile card/list view — all fields visible on narrow screens */}
-            <div className="sm:hidden p-3">
+            <div className="sm:hidden h-full overflow-auto p-3">
               {loading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 4 }).map((_, i) => (
