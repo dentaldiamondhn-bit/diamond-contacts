@@ -41,11 +41,11 @@ export function LabelEditModal({ label, onSave, onClose }: LabelEditModalProps) 
   };
 
   return (
-    <Modal open onOpenChange={onClose}>
+    <Modal open onOpenChange={onClose} aria-labelledby="label-edit-modal-title">
       <ModalContent className="max-h-[92vh] flex flex-col overflow-hidden">
         <ModalHeader>
-          <ModalTitle>Editar etiqueta</ModalTitle>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <ModalTitle id="label-edit-modal-title">Editar etiqueta</ModalTitle>
+          <button onClick={onClose} aria-label="Cerrar" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
             <X size={20} />
           </button>
         </ModalHeader>

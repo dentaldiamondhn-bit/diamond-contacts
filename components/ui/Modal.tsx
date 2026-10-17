@@ -5,17 +5,29 @@ interface ModalProps {
   open: boolean;
   onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
+  'aria-labelledby'?: string;
 }
 
-const Modal = ({ open, onOpenChange, children }: ModalProps) => {
+const Modal = ({
+  open,
+  onOpenChange,
+  children,
+  'aria-labelledby': ariaLabelledBy,
+}: ModalProps) => {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="animate-fade-in fixed inset-0 bg-slate-950/45 backdrop-blur-md"
         onClick={() => onOpenChange?.(false)}
+        aria-hidden
       />
-      <div className="relative z-50 w-full max-w-lg mx-auto max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl glass-card">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={ariaLabelledBy}
+        className="relative z-50 w-full max-w-lg mx-auto max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl glass-card"
+      >
         {children}
       </div>
     </div>

@@ -34,16 +34,16 @@ export function DeleteContactModal({ contacts, onConfirm, onCancel }: DeleteCont
   };
 
   return (
-    <Modal open onOpenChange={onCancel}>
+    <Modal open onOpenChange={onCancel} aria-labelledby="delete-contact-modal-title">
       <ModalContent className="max-h-[92vh] flex flex-col overflow-hidden">
         <ModalHeader>
-          <ModalTitle>
+          <ModalTitle id="delete-contact-modal-title">
             <span className="inline-flex items-center gap-2">
               <Trash2 size={18} className="text-rose-500" />
               {permanent ? 'Eliminar definitivamente' : 'Mover a la papelera'}
             </span>
           </ModalTitle>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <button onClick={onCancel} aria-label="Cerrar" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
             <X size={20} />
           </button>
         </ModalHeader>

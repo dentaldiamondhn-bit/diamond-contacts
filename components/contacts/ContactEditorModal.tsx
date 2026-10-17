@@ -130,11 +130,11 @@ export function ContactEditorModal({ open, editing, userId, labels, onClose }: C
   };
 
   return (
-    <Modal open={open} onOpenChange={onClose}>
+    <Modal open={open} onOpenChange={onClose} aria-labelledby="contact-editor-modal-title">
       <ModalContent className="max-h-[92vh] flex flex-col overflow-hidden">
         <ModalHeader>
-          <ModalTitle>{editing ? 'Editar contacto' : 'Nuevo contacto'}</ModalTitle>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <ModalTitle id="contact-editor-modal-title">{editing ? 'Editar contacto' : 'Nuevo contacto'}</ModalTitle>
+          <button onClick={onClose} aria-label="Cerrar" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
             <X size={20} />
           </button>
         </ModalHeader>
@@ -143,8 +143,8 @@ export function ContactEditorModal({ open, editing, userId, labels, onClose }: C
           <div className="flex items-center gap-4">
             <ContactAvatar name={fullName(draft)} size="lg" />
             <div className="grid grid-cols-2 gap-3 flex-1">
-              <Input placeholder="Nombre" value={draft.first_name} onChange={(e) => set('first_name', e.target.value)} />
-              <Input placeholder="Apellido" value={draft.last_name} onChange={(e) => set('last_name', e.target.value)} />
+              <Input aria-label="Nombre" placeholder="Nombre" value={draft.first_name} onChange={(e) => set('first_name', e.target.value)} />
+              <Input aria-label="Apellido" placeholder="Apellido" value={draft.last_name} onChange={(e) => set('last_name', e.target.value)} />
             </div>
           </div>
 
@@ -158,7 +158,7 @@ export function ContactEditorModal({ open, editing, userId, labels, onClose }: C
             <div className="space-y-2">
               {draft.phones.map((p) => (
                 <div key={p.id} className="flex items-center gap-2">
-                  <Select value={p.type} onChange={(e) => updatePhone(p.id, { type: e.target.value as PhoneType })} className="w-32 shrink-0">
+                  <Select aria-label="Tipo de teléfono" value={p.type} onChange={(e) => updatePhone(p.id, { type: e.target.value as PhoneType })} className="w-32 shrink-0">
                     <option value="mobile">Celular</option>
                     <option value="work">Trabajo</option>
                     <option value="home">Casa</option>
@@ -167,11 +167,12 @@ export function ContactEditorModal({ open, editing, userId, labels, onClose }: C
                     <option value="other">Otro</option>
                   </Select>
                   <Input
+                    aria-label="Número de teléfono"
                     placeholder="+504 0000-0000"
                     value={p.phone_number}
                     onChange={(e) => updatePhone(p.id, { phone_number: e.target.value })}
                   />
-                  <button type="button" onClick={() => removePhone(p.id)} className="text-slate-400 hover:text-rose-500 shrink-0">
+                  <button type="button" onClick={() => removePhone(p.id)} aria-label="Eliminar teléfono" className="text-slate-400 hover:text-rose-500 shrink-0">
                     <X size={16} />
                   </button>
                 </div>
@@ -211,7 +212,7 @@ export function ContactEditorModal({ open, editing, userId, labels, onClose }: C
           <div>
             {sectionTitle('Información adicional (optativa)')}
             <div className="mt-2 grid grid-cols-1 gap-3">
-              <Input placeholder="Contacto de emergencia" value={draft.emergency_contact} onChange={(e) => set('emergency_contact', e.target.value)} />
+              <Input aria-label="Contacto de emergencia" placeholder="Contacto de emergencia" value={draft.emergency_contact} onChange={(e) => set('emergency_contact', e.target.value)} />
             </div>
           </div>
 

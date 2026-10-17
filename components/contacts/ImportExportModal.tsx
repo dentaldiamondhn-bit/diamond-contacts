@@ -62,11 +62,11 @@ export function ImportExportModal({ open, userId, allContacts, onClose }: Import
   };
 
   return (
-    <Modal open={open} onOpenChange={onClose}>
+    <Modal open={open} onOpenChange={onClose} aria-labelledby="import-export-modal-title">
       <ModalContent>
         <ModalHeader>
-          <ModalTitle>Importar / Exportar contactos</ModalTitle>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <ModalTitle id="import-export-modal-title">Importar / Exportar contactos</ModalTitle>
+          <button onClick={onClose} aria-label="Cerrar" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
             <X size={20} />
           </button>
         </ModalHeader>

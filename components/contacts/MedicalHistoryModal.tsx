@@ -52,15 +52,15 @@ export function MedicalHistoryModal({ open, contact, medical, onClose }: Medical
   };
 
   return (
-    <Modal open={open} onOpenChange={onClose}>
+    <Modal open={open} onOpenChange={onClose} aria-labelledby="medical-history-modal-title">
       <ModalContent className="max-h-[92vh] flex flex-col overflow-hidden">
         <ModalHeader>
-          <ModalTitle>
+          <ModalTitle id="medical-history-modal-title">
             <span className="inline-flex items-center gap-2">
               <HeartPulse size={18} className="text-rose-500" /> Editar antecedentes
             </span>
           </ModalTitle>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <button onClick={onClose} aria-label="Cerrar" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
             <X size={20} />
           </button>
         </ModalHeader>

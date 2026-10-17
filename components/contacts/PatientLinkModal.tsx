@@ -81,11 +81,11 @@ export function PatientLinkModal({ open, contact, onClose }: PatientLinkModalPro
   };
 
   return (
-    <Modal open={open} onOpenChange={(o) => !o && onClose()}>
+    <Modal open={open} onOpenChange={(o) => !o && onClose()} aria-labelledby="patient-link-modal-title">
       <ModalContent className="max-h-[85vh] flex flex-col overflow-hidden">
         <ModalHeader>
-          <ModalTitle>Vincular a ficha de paciente</ModalTitle>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+          <ModalTitle id="patient-link-modal-title">Vincular a ficha de paciente</ModalTitle>
+          <button onClick={onClose} aria-label="Cerrar" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
             <X size={20} />
           </button>
         </ModalHeader>
@@ -95,6 +95,7 @@ export function PatientLinkModal({ open, contact, onClose }: PatientLinkModalPro
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               autoFocus
+              aria-label="Buscar paciente por nombre, identidad o teléfono"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por nombre, identidad o teléfono…"

@@ -21,12 +21,12 @@ export function PrintPreviewModal({ open, contact, onClose }: PrintPreviewModalP
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/40 print:hidden" onClick={onClose} />
+    <div role="dialog" aria-modal="true" aria-labelledby="print-preview-modal-title" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40 print:hidden" onClick={onClose} aria-hidden />
       <div className="print-modal-content relative w-full max-w-lg bg-white rounded-xl shadow-xl flex flex-col max-h-[90vh] overflow-hidden print:max-h-none print:shadow-none">
         <div className="print:hidden flex items-center justify-between px-4 py-3 border-b border-zinc-200 sticky top-0 bg-white">
-          <h3 className="text-sm font-semibold text-zinc-900">Vista previa de impresión</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <h3 id="print-preview-modal-title" className="text-sm font-semibold text-zinc-900">Vista previa de impresión</h3>
+          <button onClick={onClose} aria-label="Cerrar" className="text-slate-400 hover:text-slate-600">
             <X size={18} />
           </button>
         </div>
