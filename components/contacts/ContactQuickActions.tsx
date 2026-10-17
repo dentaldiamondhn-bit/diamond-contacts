@@ -1,7 +1,8 @@
 'use client';
 
-import { Send, Phone, MessageSquare } from 'lucide-react';
+import { Phone, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import AnimatedWhatsApp from '@/components/AnimatedWhatsApp';
 import {
   formatToE164,
   smsDeepLink,
@@ -48,11 +49,11 @@ export function ContactQuickActions({ phone, patientName, size = 'md', className
           e.preventDefault()
           void openWhatsAppDirectly(phone, whatsappGreeting(patientName))
         }}
-        className={cn(btn, 'text-emerald-500 hover:bg-emerald-500/10')}
+        className={cn(btn, 'hover:bg-emerald-500/10')}
         title={`Abrir WhatsApp con ${patientName || 'el paciente'}`}
         aria-label="Abrir WhatsApp"
       >
-        <Send size={16} />
+        <AnimatedWhatsApp size={16} />
       </a>
       <a
         href={`tel:${formatToE164(phone, '+504')}`}
