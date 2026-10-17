@@ -503,6 +503,31 @@ html, body {
   animation: slide-in-left 0.22s ease-out;
 }
 
+/* Right-hand sheet (contact detail). Uses transform only so the browser can
+   animate it on the compositor instead of recalculating layout/paint. */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.22s ease-out;
+}
+
+/* Honour the OS reduced-motion setting: show the final state immediately. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-in-right,
+  .animate-slide-in-left,
+  .animate-fade-in,
+  .animate-fade-in-up,
+  .animate-spin-gradient,
+  .animate-shimmer,
+  .animate-pulse-icon,
+  .animate-pulse-text {
+    animation: none !important;
+  }
+}
+
 .animate-fade-in {
   animation: fade-in 0.18s ease-out;
 }

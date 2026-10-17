@@ -106,6 +106,9 @@ export default function AnimatedWhatsApp({ className = '', size = 20, animate = 
       observer?.disconnect();
       animationRef.current?.destroy();
       animationRef.current = null;
+      // Keep the static fallback in sync with the destroyed SVG, otherwise the
+      // control renders as an empty box if `animate` flips back on.
+      setReady(false);
     };
   }, [animate]);
 

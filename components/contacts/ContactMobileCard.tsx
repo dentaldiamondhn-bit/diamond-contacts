@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel } from '@/lib/contacts/db';
 import { fullName, primaryPhone, primaryEmail, formatDate } from '@/lib/contacts/db';
 import { formatPhoneDisplay } from '@/lib/contacts/vcard';
-import { whatsappHref, openWhatsAppConversation } from '@/lib/contacts/vcard';
+import { whatsappHref, openWhatsAppConversation, isNativeShell } from '@/lib/contacts/vcard';
 import { ContactQuickActions } from './ContactQuickActions';
 import { ContactAvatar } from './ContactAvatar';
 
@@ -58,6 +58,9 @@ export function ContactMobileCard({
       className={cn(
         'flex flex-col gap-3 border border-zinc-200/70 dark:border-zinc-800/40 rounded-xl p-4 transition-colors',
         'hover:bg-slate-100/60 dark:hover:bg-slate-800/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500',
+        // Skip layout/paint for rows scrolled out of view; a few hundred
+        // rendered cards were a measurable cost while filtering.
+        '[content-visibility:auto] [contain-intrinsic-size:auto_180px]',
       )}
     >
       <div className="flex items-start gap-3">
@@ -97,8 +100,9 @@ export function ContactMobileCard({
               // browser follow wa.me inside the Android WebView (its redirect to
               // whatsapp:// fails with net::ERR_UNKNOWN_URL_SCHEME).
               e.stopPropagation()
+              if (!isNativeShell()) return
               e.preventDefault()
-              openWhatsAppConversation(phone.phone_number)
+              void openWhatsAppConversation(phone.phone_number)
             }}
             className="font-mono text-sm tracking-tight text-zinc-600 dark:text-zinc-300 hover:underline hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
             title={`Abrir conversación de WhatsApp con ${name || 'el paciente'}`}

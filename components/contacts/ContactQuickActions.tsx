@@ -9,6 +9,7 @@ import {
   openWhatsAppConversation,
   whatsappGreeting,
   whatsappHref,
+  isNativeShell,
 } from '@/lib/contacts/vcard';
 
 interface ContactQuickActionsProps {
@@ -16,15 +17,15 @@ interface ContactQuickActionsProps {
   phone: string;
   /** Used to preamble the WhatsApp / SMS greeting. */
   patientName: string;
+  /** Accepted for call-site compatibility; sizing is uniform. */
   size?: 'sm' | 'md';
   className?: string;
 }
 
-export function ContactQuickActions({ phone, patientName, size = 'md', className }: ContactQuickActionsProps) {
-  const btn = cn(
-    'rounded-full transition-colors',
-    size === 'sm' ? 'p-2' : 'p-2',
-  );
+export function ContactQuickActions({ phone, patientName, className }: ContactQuickActionsProps) {
+  // One size for every variant: p-2 + a 16px glyph clears the 24x24 CSS px
+  // minimum in both the table and the card.
+  const btn = cn('rounded-full transition-colors p-2');
 
   // WhatsApp is the clinic's main channel, so it is a real anchor (middle-click,
   // long-press → open/copy link works) and only falls back to the native
@@ -40,12 +41,14 @@ export function ContactQuickActions({ phone, patientName, size = 'md', className
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => {
-          // Stop the click bubbling to clickable rows/cards (the parent re-render
-          // would unmount this anchor and cancel the navigation), and always take
-          // over the navigation: a default anchor jump to wa.me inside the
-          // Android WebView follows wa.me's redirect to whatsapp:// and dies with
-          // net::ERR_UNKNOWN_URL_SCHEME.
+          // Never bubble to a clickable row/card: the parent re-render would
+          // unmount this anchor and cancel the navigation.
           e.stopPropagation()
+          // On web the anchor's own wa.me href is correct (and keeps
+          // middle-click / "copy link address" working), so only the shell
+          // takes over — a default jump to wa.me inside the WebView follows
+          // wa.me's redirect to whatsapp:// and dies with ERR_UNKNOWN_URL_SCHEME.
+          if (!isNativeShell()) return
           e.preventDefault()
           void openWhatsAppConversation(phone, greeting)
         }}

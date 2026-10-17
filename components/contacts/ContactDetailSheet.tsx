@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   X,
   Pencil,
@@ -36,7 +35,7 @@ import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel, MedicalHistory } from '@/lib/contacts/db';
 import { LABEL_COLORS, formatDate, fullName, primaryPhone } from '@/lib/contacts/db';
 import { formatPhoneDisplay, sharePatientContact } from '@/lib/contacts/vcard';
-import { whatsappHref, openWhatsAppConversation } from '@/lib/contacts/vcard';
+import { whatsappHref, openWhatsAppConversation, isNativeShell } from '@/lib/contacts/vcard';
 import { meaningfulMedicalTags } from '@/lib/contacts/patientLink';
 import { monolithMenuUrl } from '@/lib/monolith';
 import AnimatedWhatsApp from '@/components/AnimatedWhatsApp';
@@ -211,28 +210,23 @@ export function ContactDetailSheet({
     }
   };
 
+  // Animated with CSS rather than framer-motion: a JS-driven spring plus
+  // backdrop-filter over a full-height panel meant every frame recomputed a large
+  // blur on the main thread, which visibly stuttered when the sheet opened in the
+  // Android WebView. A compositor-driven transform + opaque panel animates
+  // smoothly, and `animate-slide-in-right` reuses the existing keyframes.
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            key="sheet-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-slate-950/45 backdrop-blur-md"
+    <>
+          <div
+            className="fixed inset-0 z-40 animate-fade-in bg-slate-950/45"
             onClick={onClose}
+            aria-hidden
           />
-            <motion.aside
-              key="sheet-panel"
+            <aside
               aria-modal="true"
               aria-labelledby="contact-sheet-title"
-              initial={{ x: 480 }}
-            animate={{ x: 0 }}
-            exit={{ x: 480 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md flex flex-col bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl border-l border-white/40 dark:border-white/5 shadow-2xl"
-          >
+              className="sheet-panel fixed right-0 top-0 bottom-0 z-50 w-full max-w-md flex flex-col bg-white dark:bg-slate-900 border-l border-white/40 dark:border-white/5 shadow-2xl animate-slide-in-right"
+            >
             {/* Header */}
             <div className="shrink-0 flex flex-col items-center px-6 pt-8 pb-4 border-b border-zinc-200 dark:border-zinc-800">
               <div className="flex items-start w-full">
@@ -414,8 +408,9 @@ export function ContactDetailSheet({
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => {
+                                if (!isNativeShell()) return
                                 e.preventDefault()
-                                openWhatsAppConversation(mainPhone.phone_number)
+                                void openWhatsAppConversation(mainPhone.phone_number)
                               }}
                               className="text-zinc-800 dark:text-zinc-200 hover:underline hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                               title={`Abrir conversación de WhatsApp con ${name || 'el paciente'}`}
@@ -455,8 +450,9 @@ export function ContactDetailSheet({
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => {
+                              if (!isNativeShell()) return
                               e.preventDefault()
-                              openWhatsAppConversation(p.phone_number)
+                              void openWhatsAppConversation(p.phone_number)
                             }}
                             className="font-medium hover:underline hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                             title={`Abrir conversación de WhatsApp con ${name || 'el paciente'}`}
@@ -464,6 +460,9 @@ export function ContactDetailSheet({
                             {formatPhoneDisplay(p.phone_number)}
                           </a>
                           <span className="text-xs text-zinc-400 uppercase">{p.type}</span>
+                          <span className="ml-auto">
+                            <ContactQuickActions phone={p.phone_number} patientName={name} />
+                          </span>
                         </div>
                       ))}
                     </section>
@@ -678,15 +677,13 @@ export function ContactDetailSheet({
                 </>
               )}
             </div>
-          </motion.aside>
-        </>
-      )}
+          </aside>
       {!isTrash && contact && (
         <PatientLinkModal key="sheet-linker" open={linkerOpen} contact={contact} onClose={() => setLinkerOpen(false)} />
       )}
       {contact && (
         <PrintPreviewModal open={printOpen} contact={contact} onClose={() => setPrintOpen(false)} />
       )}
-    </AnimatePresence>
+    </>
   );
 }

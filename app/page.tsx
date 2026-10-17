@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useUser } from '@clerk/nextjs';
 import { Search, Plus, Stethoscope, Menu } from 'lucide-react';
@@ -49,6 +49,7 @@ import { ImportExportModal } from '@/components/contacts/ImportExportModal';
 import { CreateAppointmentModal, type PrefilledContact } from '@/components/calendar/CreateAppointmentModal';
 import { Button } from '@/components/ui/button';
 import { UserPreferencesService } from '@/services/userPreferencesService';
+import { useIsWide, useDebouncedValue } from '@/hooks/useMediaQuery';
 import { requestContactsPermissionOnStart, syncAllToNative } from '@/services/nativeContactsService';
 
 type EditorState = { open: boolean; editing: LocalContact | null };
@@ -95,9 +96,12 @@ export default function ContactosPage() {
 
   // Every local query is keyed by userId: IndexedDB is per-origin, so an
   // unscoped read shows the previous account's contacts to whoever signs in next.
+  // The query rebuilds a lowercase string per contact, so run it against a
+  // debounced term instead of every keystroke. `search` still drives the input.
+  const debouncedSearch = useDebouncedValue(search, 250);
   const contacts = useLiveQuery(
-    () => (userId ? queryContacts(userId, filter, search) : Promise.resolve([])),
-    [userId, filter, search],
+    () => (userId ? queryContacts(userId, filter, debouncedSearch) : Promise.resolve([])),
+    [userId, filter, debouncedSearch],
   );
   const pendingCount = useLiveQuery(() => countPendingSync(userId ?? ''), [userId]);
   const labels = useLiveQuery(() => (userId ? getLabels(userId) : Promise.resolve([])), [userId]);
@@ -233,6 +237,10 @@ const labelList = useMemo(() => labels ?? [], [labels]);
 
   const sorted = useMemo(() => sortContacts(contactList, sort), [contactList, sort]);
   const isTrash = filter === 'trash';
+
+  // Stable identity: MobileSidebarSheet's scroll-lock effect depends on onClose,
+  // and an inline arrow re-ran that effect on every render.
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
 
   const selectFilter = (next: ContactFilter) => {
     setFilter(next);
@@ -410,9 +418,13 @@ const labelList = useMemo(() => labels ?? [], [labels]);
   };
 
   const loading = contacts === undefined;
+  // Only ONE of the card list / table is mounted. `sm:hidden` + `hidden sm:block`
+  // would render both trees, doubling rows and Lottie icons and re-rendering
+  // all of them on every keystroke.
+  const isWide = useIsWide();
 
   return (
-    <div className="relative flex h-dvh min-h-0 bg-white/40 dark:bg-slate-950/40">
+    <div className="relative flex h-screen h-dvh min-h-0 bg-white/40 dark:bg-slate-950/40">
       <ContactSidebar
         labels={labelList}
         activeFilter={filter}
@@ -473,7 +485,8 @@ const labelList = useMemo(() => labels ?? [], [labels]);
         <div className="flex-1 min-h-0 p-3">
           <div className="h-full overflow-hidden rounded-2xl glass-card">
             {/* Mobile card/list view — all fields visible on narrow screens */}
-            <div className="sm:hidden h-full overflow-auto p-3">
+            {!isWide && (
+            <div className="h-full overflow-auto p-3">
               {loading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -521,9 +534,11 @@ const labelList = useMemo(() => labels ?? [], [labels]);
                 </div>
               )}
             </div>
+            )}
 
             {/* Desktop/tablet table view */}
-            <div className="hidden sm:block h-full overflow-hidden">
+            {isWide && (
+            <div className="h-full overflow-hidden">
               {loading ? (
                 <ContactTable
                   contacts={[]}
@@ -588,11 +603,12 @@ const labelList = useMemo(() => labels ?? [], [labels]);
                 />
               )}
             </div>
+            )}
           </div>
         </div>
       </main>
 
-      <MobileSidebarSheet open={mobileNavOpen} onClose={() => setMobileNavOpen(false)}>
+      <MobileSidebarSheet open={mobileNavOpen} onClose={closeMobileNav}>
         <ContactSidebar
           embedded
           labels={labelList}

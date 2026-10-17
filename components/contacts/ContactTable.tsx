@@ -30,8 +30,12 @@ import { formatDate, fullName, primaryEmail, primaryPhone } from '@/lib/contacts
 import { COLUMNS, SORTABLE_COLUMN_KEYS, type ContactColumn } from './columns';
 import { ContactQuickActions } from './ContactQuickActions';
 import { ContactAvatar } from './ContactAvatar';
-import { formatPhoneDisplay } from '@/lib/contacts/vcard';
-import { whatsappHref, openWhatsAppConversation } from '@/lib/contacts/vcard';
+import {
+  formatPhoneDisplay,
+  whatsappHref,
+  openWhatsAppConversation,
+  isNativeShell,
+} from '@/lib/contacts/vcard';
 
 interface ContactTableProps {
   contacts: LocalContact[];
@@ -254,7 +258,10 @@ export function ContactTable({
                   aria-label={`Abrir contacto ${name}`}
                   onClick={() => onOpen(contact)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') onOpen(contact);
+                    // Nested controls (WhatsApp/tel/sms links, buttons) handle
+                    // their own activation; only the row itself opens the sheet.
+                    if (e.key !== 'Enter' || e.target !== e.currentTarget) return;
+                    onOpen(contact);
                   }}
                   className={cn(
                     'group cursor-pointer border-b border-slate-200/70 dark:border-slate-800/40 transition-colors outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400',
@@ -308,8 +315,9 @@ export function ContactTable({
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => {
+                            if (!isNativeShell()) return
                             e.preventDefault()
-                            openWhatsAppConversation(phone.phone_number)
+                            void openWhatsAppConversation(phone.phone_number)
                           }}
                           className="font-mono text-sm tracking-tight text-zinc-600 dark:text-zinc-300 hover:underline hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                           title={`Abrir conversación de WhatsApp con ${name || 'el paciente'}`}

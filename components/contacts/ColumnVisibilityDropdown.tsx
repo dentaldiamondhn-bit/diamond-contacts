@@ -99,13 +99,7 @@ export function ColumnVisibilityDropdown({ columns, visible, onToggle }: ColumnV
             <div
               ref={menuRef}
               aria-label="Columnas"
-              style={{
-                position: 'fixed',
-                top: pos!.top,
-                left: pos!.left,
-                transform: pos!.flip ? 'translateX(0)' : 'translateX(-100%)',
-                transformOrigin: pos!.flip ? 'left' : 'right',
-              }}
+              style={{ position: 'fixed', top: pos!.top, left: pos!.left }}
               className="z-[9999] w-56 min-w-[200px] rounded-xl glass-card shadow-2xl py-1"
             >
             <p className="px-4 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">

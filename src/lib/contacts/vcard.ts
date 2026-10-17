@@ -340,18 +340,40 @@ export function whatsappHref(phone: string, text = '', defaultCountry = '+504'):
 }
 
 /**
- * Opens a WhatsApp conversation, in a way that works in every runtime this app
+ * Detects the Android/Capacitor shell.
+ *
+ * `Capacitor.isNativePlatform()` is not usable for this: the app is served into
+ * the shell from a remote `server.url`, so the bridge can report `web` inside the
+ * APK. Probing the injected bridge globals directly is reliable, and `getPlatform`
+ * is only consulted when the bridge object is actually present.
+ */
+export function isNativeShell(): boolean {
+  if (typeof window === 'undefined') return false
+  const w = window as unknown as {
+    AndroidBridge?: unknown
+    Capacitor?: { getPlatform?: () => string }
+  }
+  if (w.AndroidBridge !== undefined) return true
+  const platform = w.Capacitor?.getPlatform?.()
+  return !!platform && platform !== 'web'
+}
+
+/**
+ * Opens a WhatsApp conversation in a way that works in every runtime this app
  * ships to (Android shell, PWA, desktop browser).
  *
- * Why not `Capacitor.isNativePlatform()`: the shell loads this app from a remote
- * `server.url`, so the Capacitor bridge can report `web` inside the APK. Gating
- * the intent on that flag made the shell fall through to a plain `wa.me`
- * navigation, whose server-side redirect to `whatsapp://send/…` the WebView then
- * tried to load itself, failing with `net::ERR_UNKNOWN_URL_SCHEME`.
+ * Two traps this deliberately avoids:
+ * 1. `@capacitor/app-launcher` has a **web** implementation that calls
+ *    `window.open(url)` and resolves — it never rejects. Dispatching the
+ *    `whatsapp://` intent unconditionally therefore "succeeded" on the web and
+ *    opened an unknown-protocol tab instead of WhatsApp.
+ * 2. Navigating the current document to `https://wa.me/...` inside the Android
+ *    WebView makes wa.me redirect to `whatsapp://send/...`, which the WebView
+ *    then tries to load itself, failing with `net::ERR_UNKNOWN_URL_SCHEME`.
  *
- * So we always attempt the OS intent first (it simply rejects when the plugin is
- * absent, i.e. on the web) and never navigate the current document to `wa.me`:
- * that redirect is only safe in a real browser, never in the Android WebView.
+ * So: web/PWA opens wa.me in a new tab synchronously (no `await` beforehand, so
+ * it is never popup-blocked); the shell dispatches the OS intent and falls back
+ * to the https link through the OS.
  */
 export async function openWhatsAppConversation(
   phone: string,
@@ -363,26 +385,30 @@ export async function openWhatsAppConversation(
 
   const encoded = textMessage ? encodeURIComponent(textMessage) : ''
   const httpsUrl = `https://wa.me/${digits}${encoded ? `?text=${encoded}` : ''}`
-  const intentUrl = `whatsapp://send?phone=${digits}${encoded ? `&text=${encoded}` : ''}`
 
-  // 1) Hand the whatsapp:// scheme to the OS so the WhatsApp app itself opens.
+  // Web / PWA / desktop: synchronous new tab, still inside the user gesture.
+  if (!isNativeShell()) {
+    window.open(httpsUrl, '_blank', 'noopener,noreferrer')
+    return
+  }
+
+  const intentUrl = `whatsapp://send?phone=${digits}${encoded ? `&text=${encoded}` : ''}`
   try {
+    // 1) Hand the whatsapp:// scheme to the OS so the WhatsApp app itself opens.
     await AppLauncher.openUrl({ url: intentUrl })
     return
   } catch {
-    /* not native, or WhatsApp not installed */
+    /* WhatsApp not installed */
   }
-
-  // 2) Still native: open the wa.me link through the OS, which puts it in a real
-  //    browser where its redirect to WhatsApp is handled correctly.
   try {
+    // 2) Still native: open wa.me through the OS, i.e. in a real browser where
+    //    its redirect to WhatsApp is handled correctly.
     await AppLauncher.openUrl({ url: httpsUrl })
     return
   } catch {
-    /* genuinely a browser/PWA */
+    /* fall through */
   }
-
-  // 3) Web / PWA: hand the link to the OS in a new tab.
+  // 3) Last resort: a new tab. Never navigate the current document here.
   window.open(httpsUrl, '_blank', 'noopener,noreferrer')
 }
 
