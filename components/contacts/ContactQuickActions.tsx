@@ -40,6 +40,10 @@ export function ContactQuickActions({ phone, patientName, size = 'md', className
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => {
+          // This control lives inside clickable rows/cards; never let the click
+          // bubble to them, or the parent re-render unmounts this anchor and
+          // cancels the navigation to WhatsApp.
+          e.stopPropagation()
           if (!nativeIntent || !waHref) return
           e.preventDefault()
           void openWhatsAppDirectly(phone, whatsappGreeting(patientName))

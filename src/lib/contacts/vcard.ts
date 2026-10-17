@@ -369,12 +369,20 @@ export function usesNativeWhatsAppIntent(): boolean {
  */
 export function openWhatsAppConversation(phone: string, defaultCountry = '+504'): void {
   const digits = normalizeWhatsAppNumber(phone, defaultCountry).replace('+', '')
-  if (!digits) return
+  if (!digits || typeof window === 'undefined') return
   const url = `https://wa.me/${digits}`
   if (Capacitor.isNativePlatform()) {
-    void AppLauncher.openUrl({ url: `whatsapp://send?phone=${digits}` }).catch(() => {
-      void AppLauncher.openUrl({ url }).catch(() => {})
-    })
+    // Chain every fallback so a refused intent can never end in a silent no-op:
+    // intent -> https via AppLauncher -> plain navigation (WebView hands it off).
+    void AppLauncher.openUrl({ url: `whatsapp://send?phone=${digits}` })
+      .then(() => undefined)
+      .catch(() =>
+        AppLauncher.openUrl({ url })
+          .then(() => undefined)
+          .catch(() => {
+            window.location.href = url
+          }),
+      )
     return
   }
   window.open(url, '_blank', 'noopener,noreferrer')

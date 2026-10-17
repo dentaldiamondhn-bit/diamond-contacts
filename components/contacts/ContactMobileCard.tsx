@@ -1,6 +1,6 @@
 'use client';
 
-import { ExternalLink, FileText, Mail, Send, Star, StarOff, Cloud, CloudOff, CheckCircle2, Trash2, RotateCcw, Eye, CalendarPlus } from 'lucide-react';
+import { ExternalLink, FileText, Mail, Star, StarOff, Cloud, CloudOff, CheckCircle2, Trash2, RotateCcw, Eye, CalendarPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel } from '@/lib/contacts/db';
 import { fullName, primaryPhone, primaryEmail, formatDate } from '@/lib/contacts/db';
@@ -52,7 +52,12 @@ export function ContactMobileCard({
       aria-label={`Abrir contacto ${name}`}
       onClick={() => onOpen(contact)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') onOpen(contact);
+        if (e.key !== 'Enter') return
+        // Nested controls (links, chips, buttons) activate themselves; only the
+        // card itself opens the detail sheet, otherwise a single Enter both
+        // activates the control and bubbles here.
+        if (e.target !== e.currentTarget) return
+        onOpen(contact);
       }}
       className={cn(
         'flex flex-col gap-3 border border-zinc-200/70 dark:border-zinc-800/40 rounded-xl p-4 transition-colors',
@@ -86,13 +91,16 @@ export function ContactMobileCard({
 
       {/* Phone + quick actions */}
       {phone && (
-        <div className="flex items-center gap-2">
-          <Send size={14} className="shrink-0 text-emerald-500" />
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <a
             href={whatsappHref(phone.phone_number) || undefined}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => {
+              // The card itself is clickable, so stop the click from also opening
+              // the detail sheet: that re-render unmounts this anchor and React
+              // cancels the queued wa.me navigation before WhatsApp opens.
+              e.stopPropagation()
               if (!usesNativeWhatsAppIntent()) return
               e.preventDefault()
               openWhatsAppConversation(phone.phone_number)
@@ -136,8 +144,11 @@ export function ContactMobileCard({
       {/* Expediente */}
       {contact.patient_id && (
         <button
-          onClick={() => onOpenEhr(contact)}
-          className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenEhr(contact);
+          }}
+          className="self-start inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors"
           title="Expediente EHR vinculado"
         >
           <FileText size={12} /> Vinculado
@@ -160,7 +171,10 @@ export function ContactMobileCard({
       </div>
 
       {/* Actions */}
-      <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-zinc-100/60 dark:border-zinc-800/40 sm:flex-nowrap">
+      <div
+        className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-zinc-100/60 dark:border-zinc-800/40 sm:flex-nowrap"
+        onClick={(e) => e.stopPropagation()}
+      >
         {!isTrash ? (
           <>
             <button
