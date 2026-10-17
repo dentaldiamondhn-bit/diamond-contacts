@@ -412,7 +412,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
   const loading = contacts === undefined;
 
   return (
-    <div className="relative flex min-h-dvh min-h-0 bg-white/40 dark:bg-slate-950/40">
+    <div className="relative flex h-dvh min-h-0 bg-white/40 dark:bg-slate-950/40">
       <ContactSidebar
         labels={labelList}
         activeFilter={filter}
@@ -523,7 +523,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
             </div>
 
             {/* Desktop/tablet table view */}
-            <div className="hidden sm:block">
+            <div className="hidden sm:block h-full overflow-hidden">
               {loading ? (
                 <ContactTable
                   contacts={[]}
