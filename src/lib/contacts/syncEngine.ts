@@ -1,4 +1,4 @@
-import { getSupabaseAccessToken, supabase } from '../supabase'
+import { pullRemoteData, pushRemoteData } from './syncApi'
 import { formatToE164 } from './vcard'
 import {
   NativeContactsBridge,
@@ -213,86 +213,29 @@ async function adoptRemoteLabel(
   await db.labels.put({ id: server.id, user_id: userId, name: server.name, color: server.color, synced: 1 })
 }
 
-async function pushLabels(userId: string): Promise<number> {
+async function pushLabels(
+  userId: string,
+  remoteLabels: Array<{ id: string; name: string; color: string }>,
+): Promise<{ toPush: Array<{ id: string; user_id: string; name: string; color: string }>; pushed: number }> {
   const all = await db.labels.where('user_id').equals(userId).toArray()
   const unsynced = all.filter((l) => l.synced === 0)
+  const remoteLabelByName = new Map(remoteLabels.map((l) => [l.name.toLowerCase(), l]))
   let pushed = 0
-  for (const label of unsynced) {
-    try {
-      // Resolve the remote row BEFORE writing. A label that already exists
-      // remotely (rename/color edit while synced=1, a re-created row, or another
-      // device) must keep its id stable — the ORG/TITLE/ADR CardDAV junction keys
-      // off it. Matching on (user_id, name) as well as id means a name collision
-      // ADOPTS the server row instead of provoking a 409 from the insert
-      // (contact_labels_user_id_name_key), which the browser logs as a red
-      // network error even though the catch below recovers from it.
-      const [{ data: byId }, { data: byName }] = await Promise.all([
-        supabase
-          .from('contact_labels')
-          .select('id, name, color')
-          .eq('id', label.id)
-          .maybeSingle(),
-        supabase
-          .from('contact_labels')
-          .select('id, name, color')
-          .eq('user_id', userId)
-          .eq('name', label.name)
-          .maybeSingle(),
-      ])
+  const toPush: Array<{ id: string; user_id: string; name: string; color: string }> = []
 
-      const server = byId ?? byName
-      if (!server) {
-        await supabase.from('contact_labels').insert({
-          id: label.id,
-          user_id: userId,
-          name: label.name,
-          color: label.color,
-        }).throwOnError()
-      } else if (server.id !== label.id) {
-        // Same name, different id: fold the local row onto the server one so
-        // local references (and the junction rows) keep pointing at a real label.
-        await adoptRemoteLabel(label.id, server, userId)
-        pushed += 1
-        continue
-      } else {
-        await supabase
-          .from('contact_labels')
-          .update({ name: label.name, color: label.color })
-          .eq('id', label.id)
-          .throwOnError()
-      }
-      await db.labels.update(label.id, { synced: 1 })
+  for (const label of unsynced) {
+    const existing = remoteLabelByName.get(label.name.toLowerCase())
+    if (existing && existing.id !== label.id) {
+      // Same name, different id: fold the local row onto the server one so
+      // local references (and the junction rows) keep pointing at a real label.
+      await adoptRemoteLabel(label.id, existing, userId)
       pushed += 1
-    } catch (err) {
-      if ((err as { code?: string }).code === '23505') {
-        // Lost the race against a concurrent insert (another device, or the
-        // /api/contacts/tags route): adopt the row that won.
-        const { data: byName } = await supabase
-          .from('contact_labels')
-          .select('id, name, color')
-          .eq('user_id', userId)
-          .eq('name', label.name)
-          .maybeSingle()
-        if (byName && byName.id !== label.id) {
-          await adoptRemoteLabel(label.id, byName, userId)
-          pushed += 1
-        }
-        continue
-      }
-      console.error(`[sync] push de etiqueta fallida (${label.name}):`, err)
+    } else {
+      toPush.push({ id: label.id, user_id: label.user_id, name: label.name, color: label.color })
     }
   }
-  return pushed
-}
 
-async function pushContactJunctions(contactId: string, labelIds: string[]): Promise<void> {
-  await supabase.from('contact_label_junction').delete().eq('contact_id', contactId).throwOnError()
-  if (labelIds.length > 0) {
-    await supabase
-      .from('contact_label_junction')
-      .insert(labelIds.map((label_id) => ({ contact_id: contactId, label_id })))
-      .throwOnError()
-  }
+  return { toPush, pushed }
 }
 
 async function runPushLocalChanges(userId: string): Promise<number> {
@@ -302,89 +245,159 @@ async function runPushLocalChanges(userId: string): Promise<number> {
   const unsynced = (await db.contacts.where('user_id').equals(userId).toArray()).filter(
     (c) => c.synced === 0,
   )
-  let pushed = 0
+  if (unsynced.length === 0) {
+    // Still push labels/medical history even if no contact changes.
+    const labels = await db.labels.where('user_id').equals(userId).filter((l) => l.synced === 0).toArray()
+    const histories = await db.medicalHistories.where('synced').equals(0).toArray()
+    const owned = new Set(await getContactIdsForUser(userId))
+    const unsyncedHistories = histories.filter((h) => owned.has(h.contactId))
+    if (labels.length === 0 && unsyncedHistories.length === 0) return 0
+    const remote = await pullRemoteData(userId)
+    const remoteLabels = remote.data?.labels ?? []
+    const { toPush, pushed: labelPushed } = await pushLabels(userId, remoteLabels)
+    const medicalHistoryPayload = await Promise.all(unsyncedHistories.map(async (h) => {
+      const owner = await db.contacts.get(h.contactId) // sync, best effort
+      return {
+        contact_id: h.contactId,
+        user_id: owner?.user_id ?? null,
+        allergies: h.allergies,
+        chronic_conditions: h.chronicConditions,
+        current_medications: h.currentMedications,
+        odontogram_notes: h.odontogramNotes ?? null,
+        last_dental_visit: h.lastDentalVisit ?? null,
+        blood_type: h.bloodType ?? null,
+        updated_at: h.updatedAt ?? new Date().toISOString(),
+      }
+    }))
+    const pushPayload: any = {
+      contacts: [],
+      labels: toPush,
+      phones: [],
+      emails: [],
+      junctions: [],
+      medicalHistory: medicalHistoryPayload,
+      deletions: { contacts: [], labels: [], medicalHistory: [] },
+    }
+    const { error } = await pushRemoteData(pushPayload)
+    if (error) throw new Error(error)
+    for (const l of toPush) await db.labels.update(l.id, { synced: 1 })
+    for (const h of unsyncedHistories) {
+      await db.medicalHistories.update(h.contactId, { synced: 1, updatedAt: new Date().toISOString() })
+    }
+    return labelPushed + unsyncedHistories.length
+  }
+
+  const now = new Date().toISOString()
+  const pushContacts: Array<Record<string, unknown>> = []
+  const pushPhones: Array<Record<string, unknown>> = []
+  const pushEmails: Array<Record<string, unknown>> = []
+  const pushJunctions: Array<{ contact_id: string; label_id: string }> = []
+  const contactsToMarkSynced: string[] = []
 
   for (const contact of unsynced) {
-    const now = new Date().toISOString()
     try {
       if (contact.deleted === 1) {
-        await supabase
-          .from('contacts')
-          .update({ deleted_at: now, updated_at: now, version: (contact.version ?? 1) + 1 })
-          .eq('id', contact.id)
-          .throwOnError()
+        pushContacts.push({
+          id: contact.id,
+          user_id: userId,
+          deleted_at: now,
+          updated_at: now,
+          version: (contact.version ?? 1) + 1,
+          deleted: 1,
+        })
       } else {
         const { id, phones, emails, label_ids, ...rest } = contact
         const { synced: _synced, deleted: _deleted, deleted_at: _deletedAt, ...payload } = rest
-        await supabase
-          .from('contacts')
-          .upsert(
-            {
-              id,
-              user_id: userId,
-              ...payload,
-              deleted_at: null,
-              updated_at: now,
-              version: (contact.version ?? 1) + 1,
-            },
-            { onConflict: 'id' },
-          )
-          .throwOnError()
-
-        await Promise.all([
-          replaceRemoteRows(
-            'contact_phones',
-            id,
-            phones.map((p) => ({
-              id: p.id,
-              contact_id: id,
-              type: p.type,
-              phone_number: p.phone_number,
-              is_primary: !!p.is_primary,
-            })),
-          ),
-          replaceRemoteRows(
-            'contact_emails',
-            id,
-            emails.map((e) => ({
-              id: e.id,
-              contact_id: id,
-              type: e.type,
-              email: e.email,
-              is_primary: !!e.is_primary,
-            })),
-          ),
-          pushContactJunctions(id, label_ids),
-        ])
+        pushContacts.push({
+          id,
+          user_id: userId,
+          ...payload,
+          deleted_at: null,
+          updated_at: now,
+          version: (contact.version ?? 1) + 1,
+        })
+        for (const p of phones) {
+          pushPhones.push({
+            id: p.id,
+            contact_id: id,
+            type: p.type,
+            phone_number: p.phone_number,
+            is_primary: !!p.is_primary,
+          })
+        }
+        for (const e of emails) {
+          pushEmails.push({
+            id: e.id,
+            contact_id: id,
+            type: e.type,
+            email: e.email,
+            is_primary: !!e.is_primary,
+          })
+        }
+        for (const lid of label_ids) {
+          pushJunctions.push({ contact_id: id, label_id: lid })
+        }
       }
-
-      await db.contacts.update(contact.id, {
-        synced: 1,
-        deleted_at: contact.deleted === 1 ? contact.deleted_at ?? now : null,
-        version: (contact.version ?? 1) + 1,
-      })
-      pushed += 1
+      contactsToMarkSynced.push(contact.id)
     } catch (err) {
       console.error(`[sync] push fallida para ${contact.id}:`, err)
     }
   }
 
-  const labelsPushed = await pushLabels(userId)
-  const historyPushed = await pushMedicalHistories(userId)
-  return pushed + labelsPushed + historyPushed
-}
+  // Pull remote labels for conflict resolution before pushing labels.
+  const remote = await pullRemoteData(userId)
+  const remoteLabels = remote.data?.labels ?? []
+  const { toPush: pushLabelsArr, pushed: labelPushed } = await pushLabels(userId, remoteLabels)
 
-// Child rows are fully replaced per contact. Safe under the single-flight
-// lock; any failure throws and leaves the contact unsynced for retry.
-async function replaceRemoteRows(
-  table: 'contact_phones' | 'contact_emails',
-  contactId: string,
-  rows: Array<Record<string, unknown>>,
-): Promise<void> {
-  await supabase.from(table).delete().eq('contact_id', contactId).throwOnError()
-  if (rows.length > 0) {
-    await supabase.from(table).insert(rows as never[]).throwOnError()
+  // Medical histories whose contacts are owned by this account.
+  const owned = new Set(await getContactIdsForUser(userId))
+  const allHistories = await db.medicalHistories.where('synced').equals(0).toArray()
+  const unsyncedHistories = allHistories.filter((h) => owned.has(h.contactId))
+  const pushMedicalHistory = unsyncedHistories.map(async (h) => {
+    const owner = await db.contacts.get(h.contactId)
+    return {
+      contact_id: h.contactId,
+      user_id: owner?.user_id ?? null,
+      allergies: h.allergies,
+      chronic_conditions: h.chronicConditions,
+      current_medications: h.currentMedications,
+      odontogram_notes: h.odontogramNotes ?? null,
+      last_dental_visit: h.lastDentalVisit ?? null,
+      blood_type: h.bloodType ?? null,
+      updated_at: h.updatedAt ?? new Date().toISOString(),
+    }
+  })
+  const pushMedicalHistoryResolved = await Promise.all(pushMedicalHistory)
+
+  const pushPayload: any = {
+    contacts: pushContacts,
+    labels: pushLabelsArr,
+    phones: pushPhones,
+    emails: pushEmails,
+    junctions: pushJunctions,
+    medicalHistory: pushMedicalHistoryResolved,
+    deletions: { contacts: [], labels: [], medicalHistory: [] },
   }
+
+  const { error } = await pushRemoteData(pushPayload)
+  if (error) throw new Error(error)
+
+  // Mark synced on success.
+  for (const id of contactsToMarkSynced) {
+    const contact = await db.contacts.get(id)
+    if (!contact) continue
+    await db.contacts.update(id, {
+      synced: 1,
+      deleted_at: contact.deleted === 1 ? contact.deleted_at ?? now : null,
+      version: (contact.version ?? 1) + 1,
+    })
+  }
+  for (const l of pushLabelsArr) await db.labels.update(l.id, { synced: 1 })
+  for (const h of unsyncedHistories) {
+    await db.medicalHistories.update(h.contactId, { synced: 1, updatedAt: new Date().toISOString() })
+  }
+
+  return contactsToMarkSynced.length + labelPushed + unsyncedHistories.length
 }
 
 export function pushLocalChanges(userId: string): Promise<number> {
@@ -428,39 +441,6 @@ export async function flushOfflineOutbox(userId: string, opts?: OutboxFlushOptio
 // MEDICAL HISTORY sync (1:1 summary per contact)
 // ---------------------------------------------------------------------------
 
-async function pushMedicalHistories(userId: string): Promise<number> {
-  // Histories carry no user_id of their own; ownership comes from the contact
-  // row, so only push histories whose contact belongs to the signed-in account.
-  const owned = new Set(await getContactIdsForUser(userId))
-  const all = await db.medicalHistories.where('synced').equals(0).toArray()
-  const unsynced = all.filter((h) => owned.has(h.contactId))
-  let pushed = 0
-  for (const h of unsynced) {
-    try {
-      const owner = await db.contacts.get(h.contactId)
-      await supabase.from('patient_medical_history').upsert(
-        {
-          contact_id: h.contactId,
-          user_id: owner?.user_id ?? null,
-          allergies: h.allergies,
-          chronic_conditions: h.chronicConditions,
-          current_medications: h.currentMedications,
-          odontogram_notes: h.odontogramNotes ?? null,
-          last_dental_visit: h.lastDentalVisit ?? null,
-          blood_type: h.bloodType ?? null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'contact_id' },
-      ).throwOnError()
-      await db.medicalHistories.update(h.contactId, { synced: 1, updatedAt: new Date().toISOString() })
-      pushed += 1
-    } catch (err) {
-      console.error(`[sync] push de historial clínico fallida (${h.contactId}):`, err)
-    }
-  }
-  return pushed
-}
-
 function toLocalMedicalHistory(row: RemoteHistoryRow): MedicalHistory {
   return {
     contactId: row.contact_id,
@@ -484,41 +464,15 @@ export function pullRemoteContacts(userId: string): Promise<number> {
 }
 
 async function runPullRemoteContacts(userId: string): Promise<number> {
-  // Whether this pull actually carried a Clerk token. Without one the request
-  // runs as `anon` and RLS returns an empty set, which is indistinguishable from
-  // "the account is empty". The destructive half of the reconcile (tombstoning
-  // local rows) is therefore only allowed on an authorized pull, so a missing or
-  // expired token can never wipe a device.
-  const authorized = Boolean(await getSupabaseAccessToken())
-  const [contactsRes, labelsRes] = await Promise.all([
-    supabase
-      .from('contacts')
-      .select('*, contact_phones(*), contact_emails(*)')
-      .eq('user_id', userId)
-      .limit(2000),
-    supabase.from('contact_labels').select('*').eq('user_id', userId),
-  ])
+  // The server pull is always authorized via Clerk auth + service role key.
+  // No client JWT is needed; RLS is bypassed on the server.
+  const remote = await pullRemoteData(userId, 2000)
+  if (remote.error) throw new Error(remote.error)
 
-  if (contactsRes.error) throw new Error(contactsRes.error.message)
-  if (labelsRes.error) throw new Error(labelsRes.error.message)
-
-  const rows = (Array.isArray(contactsRes.data) ? contactsRes.data : []) as RemoteContactRow[]
-  const labelRows = (Array.isArray(labelsRes.data) ? labelsRes.data : []) as RemoteLabelRow[]
-
-  // Junctions are fetched AFTER labels and filtered to this account's label ids.
-  // An unfiltered select here used to download every clinic's contact_id↔label_id
-  // mapping into the browser; once the strict RLS policies are live it would
-  // return zero rows instead and silently strip `label_ids` from every contact.
-  const ownLabelIds = labelRows.map((l) => l.id)
-  const junctionsRes = ownLabelIds.length
-    ? await supabase
-        .from('contact_label_junction')
-        .select('contact_id, label_id')
-        .in('label_id', ownLabelIds)
-    : { data: [], error: null }
-  if (junctionsRes.error) throw new Error(junctionsRes.error.message)
-
-  const junctionRows = (Array.isArray(junctionsRes.data) ? junctionsRes.data : []) as RemoteJunctionRow[]
+  const rows = (remote.data?.contacts ?? []) as RemoteContactRow[]
+  const labelRows = (remote.data?.labels ?? []) as RemoteLabelRow[]
+  const junctionRows = (remote.data?.junctions ?? []) as RemoteJunctionRow[]
+  const medicalHistoryRows = (remote.data?.medicalHistory ?? []) as RemoteHistoryRow[]
 
   // Reconcile labels
   const junctionByContact = new Map<string, string[]>()
@@ -541,14 +495,9 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
     reconciled += 1
   }
   const localLabels = await db.labels.where('user_id').equals(userId).toArray()
-  // Same guard as the contact tombstone below: an empty label result must not be
-  // read as "the user deleted all their labels", which would strip labels off
-  // every device after a single unauthorized pull.
-  if (authorized && (labelRows.length > 0 || localLabels.length === 0)) {
-    for (const local of localLabels) {
-      if (local.synced === 1 && !remoteLabelIds.has(local.id)) {
-        await db.labels.delete(local.id)
-      }
+  for (const local of localLabels) {
+    if (local.synced === 1 && !remoteLabelIds.has(local.id)) {
+      await db.labels.delete(local.id)
     }
   }
 
@@ -559,8 +508,6 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
     const localTs = existing ? new Date(existing.updated_at ?? 0).getTime() : 0
 
     // Local unsynced edit that is newer (or ties) wins and is pushed later.
-    // `>=` (not `>`) prevents a millisecond-equality collision from silently
-    // dropping a pending local edit; the next push re-stamps updated_at.
     if (existing && existing.synced === 0 && localTs >= remoteTs) continue
 
     const local = toLocalContact(row, userId)
@@ -611,33 +558,21 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
   }
 
   // Collect remote contact IDs that were explicitly deleted (have deleted_at).
-  // We only tombstone local rows for those, never for contacts merely missing
-  // from a single pull (which can happen during RLS token timing / transient
-  // network issues). Tombstoning a merely-missing contact is how devices end
-  // up with different contact counts.
   const remoteDeletedIds = new Set(
     rows.filter((r) => r.deleted_at).map((r) => r.id),
   )
 
   // Tombstone any synced local rows that the remote explicitly deleted.
   const localRows = await db.contacts.where('user_id').equals(userId).toArray()
-  if (authorized && (rows.length > 0 || localRows.length === 0)) {
-    for (const local of localRows) {
-      if (local.synced === 1 && !local.deleted && remoteDeletedIds.has(local.id)) {
-        await db.contacts.update(local.id, { deleted: 1, deleted_at: new Date().toISOString() })
-      }
+  for (const local of localRows) {
+    if (local.synced === 1 && !local.deleted && remoteDeletedIds.has(local.id)) {
+      await db.contacts.update(local.id, { deleted: 1, deleted_at: new Date().toISOString() })
     }
-  } else {
-    console.warn(
-      '[sync] pull devolvió 0 contactos con %d locales: se omite la reconciliación de borrados (posible RLS/sin token)',
-      localRows.length,
-    )
   }
 
-  // Reconcile medical histories LAST and best-effort: a failure here (e.g. a
-  // column missing from the deployed schema) must never abort the contact pull.
+  // Reconcile medical histories from the pull result (best-effort).
   try {
-    await reconcileMedicalHistories(userId, rows, authorized && (rows.length > 0 || localRows.length === 0))
+    await reconcileMedicalHistoriesFromPull(medicalHistoryRows, rows, localRows.length)
   } catch (err) {
     console.warn('[sync] reconciliación de historiales clínicos fallida (se reintentará):', err)
   }
@@ -645,34 +580,17 @@ async function runPullRemoteContacts(userId: string): Promise<number> {
   return reconciled
 }
 
-async function reconcileMedicalHistories(
-  userId: string,
+async function reconcileMedicalHistoriesFromPull(
+  remoteHistories: RemoteHistoryRow[],
   rows: RemoteContactRow[],
-  allowDeletions: boolean,
+  localRowCount: number,
 ): Promise<void> {
-  const contactIds = rows.map((r) => r.id)
-  let histories: RemoteHistoryRow[] = []
-  if (contactIds.length > 0) {
-    const chunkSize = 900
-    for (let i = 0; i < contactIds.length; i += chunkSize) {
-      const chunk = contactIds.slice(i, i + chunkSize)
-      const { data, error } = await supabase
-        .from('patient_medical_history')
-        .select('contact_id, allergies, chronic_conditions, current_medications, odontogram_notes, last_dental_visit, updated_at')
-        .in('contact_id', chunk)
-      if (error) throw new Error(error.message)
-      histories = histories.concat(Array.isArray(data) ? (data as RemoteHistoryRow[]) : [])
-    }
-  }
-
-  const remoteContactIds = new Set(contactIds)
-  const remoteHistories = new Set(histories.map((h) => h.contact_id))
+  const remoteContactIds = new Set(rows.map((r) => r.id))
+  const remoteHistoryIds = new Set(remoteHistories.map((h) => h.contact_id))
 
   // Local unsynced history that is newer wins and gets pushed on next sync.
-  for (const row of histories) {
+  for (const row of remoteHistories) {
     const existing = await db.medicalHistories.get(row.contact_id)
-    // Local unsynced history that is newer (or ties) wins and gets pushed on
-    // next sync — same `>=` tie-break as the contacts pull.
     const remoteTs = new Date(row.updated_at ?? 0).getTime()
     const localTs = existing ? new Date(existing.updatedAt ?? 0).getTime() : 0
     if (existing && existing.synced === 0 && localTs >= remoteTs) continue
@@ -680,24 +598,22 @@ async function reconcileMedicalHistories(
   }
 
   // Drop local histories whose contact is gone or whose server row was deleted.
-  //
-  // Restricted to the contacts this account owns: `localHistories` covers the
-  // whole IndexedDB, which is per-origin and survives sign-out, so an unscoped
-  // loop would delete the previous account's synced histories the first time
-  // this account pulls — silent data loss for whoever signs in next.
-  const ownedContactIds = new Set(await getContactIdsForUser(userId))
+  const ownedContactIds = new Set(await getContactIdsForUser(userIdFromRows(rows)))
   const localHistories = await db.medicalHistories.toArray()
-  // Same empty-result guard as the contact tombstone: only drop local histories
-  // when the pull was authorized and actually returned rows (or we hold none).
-  if (allowDeletions) {
-    for (const local of localHistories) {
-      if (!ownedContactIds.has(local.contactId)) continue
-      const stillLinked = remoteContactIds.has(local.contactId)
-      if (local.synced === 1 && (!stillLinked || !remoteHistories.has(local.contactId))) {
-        await db.medicalHistories.delete(local.contactId)
-      }
+  for (const local of localHistories) {
+    if (!ownedContactIds.has(local.contactId)) continue
+    const stillLinked = remoteContactIds.has(local.contactId)
+    if (local.synced === 1 && (!stillLinked || !remoteHistoryIds.has(local.contactId))) {
+      await db.medicalHistories.delete(local.contactId)
     }
   }
+}
+
+function userIdFromRows(rows: RemoteContactRow[]): string {
+  for (const r of rows) {
+    if (r.user_id) return r.user_id
+  }
+  return ''
 }
 
 // ---------------------------------------------------------------------------
@@ -719,57 +635,14 @@ export function scheduleRealtimePull(userId: string, onChange: () => void): void
 export function subscribeToRealtimeSync(
   userId: string,
   onChange: () => void,
-): { channel: ReturnType<typeof supabase.channel>; unsubscribe: () => void } {
-  const handleChange = () => scheduleRealtimePull(userId, onChange)
-
-  // Contacts changes are the critical cross-device path: keep them on their OWN
-  // channel so a failing bind on an auxiliary table (e.g. patient_medical_history
-  // subscribed via a user_id column that a partially-applied migration left out)
-  // can never silence contact events for the whole socket.
-  const channel = supabase
-    .channel('contacts_sync')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'contacts', filter: `user_id=eq.${userId}` },
-      handleChange,
-    )
-    .subscribe()
-
-  // Auxiliary tables on a SECOND channel: medical history + etiquetas + their
-  // junction. The history is filtered at the socket level through the
-  // denormalized user_id column (migration 20260926000000) so other clinics'
-  // history updates never reach this client's connection; the junction carries
-  // its own denormalized user_id (migration 20261001) for the same reason. If a
-  // bind here errors, only auxiliary live updates are lost — never contacts.
-  const auxChannel = supabase
-    .channel('contacts_sync_aux')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'patient_medical_history', filter: `user_id=eq.${userId}` },
-      handleChange,
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'contact_labels', filter: `user_id=eq.${userId}` },
-      handleChange,
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'contact_label_junction', filter: `user_id=eq.${userId}` },
-      handleChange,
-    )
-    .subscribe()
-
+): { channel: { unsubscribe: () => void }; unsubscribe: () => void } {
+  // Realtime websockets require a verified Clerk JWT on the Supabase socket,
+  // which the anon-key client no longer provides. Cross-device sync is driven
+  // by pull on mount, focus, and online events instead. Keep the API shape so
+  // callers can still call .unsubscribe().
   return {
-    channel,
-    unsubscribe: () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer)
-        debounceTimer = null
-      }
-      supabase.removeChannel(channel)
-      supabase.removeChannel(auxChannel)
-    },
+    channel: { unsubscribe: () => {} },
+    unsubscribe: () => {},
   }
 }
 
@@ -1003,30 +876,35 @@ async function runPermanentDelete(id: string): Promise<void> {
 
   // Archive a full snapshot BEFORE the hard delete. The cascade below removes
   // the child rows and the medical history, so without this the delete is
-  // irreversible and there is no other "deleted contacts" store to recover
+  // irreversible and there is no other "deleted_contacts" store to recover
   // from. Best effort: an archive failure must not block the user's delete.
   try {
-    const token = await getSupabaseAccessToken()
-    if (token) {
-      const history = await db.medicalHistories.get(id)
-      await supabase
-        .from('deleted_contacts')
-        .insert({
+    const history = await db.medicalHistories.get(id)
+    const snapshot = { contact: existing, medical_history: history ?? null }
+    await pushRemoteData({
+      contacts: [],
+      labels: [],
+      phones: [],
+      emails: [],
+      junctions: [],
+      medicalHistory: [],
+      deletions: {
+        contacts: [{
           id: existing.id,
           user_id: existing.user_id,
-          full_name: [existing.first_name, existing.last_name].filter(Boolean).join(' ').trim() || null,
+          first_name: existing.first_name,
+          last_name: existing.last_name,
           deleted_at: existing.deleted_at ?? null,
-          snapshot: { contact: existing, medical_history: history ?? null },
-        })
-        .throwOnError()
-    }
+          snapshot,
+        }],
+        labels: [],
+        medicalHistory: [],
+      },
+    })
   } catch (err) {
     console.error('[sync] no se pudo archivar el contacto eliminado en deleted_contacts:', err)
   }
 
-  // Child rows (phones, emails, junctions) and the 1:1 medical history clean
-  // up via ON DELETE CASCADE, so one server call is enough.
-  await supabase.from('contacts').delete().eq('id', id).throwOnError()
   await db.medicalHistories.delete(id)
   await db.contacts.delete(id)
 }
@@ -1062,7 +940,17 @@ export async function removeMedicalHistory(contactId: string): Promise<void> {
   const existing = await db.medicalHistories.get(contactId)
   if (!existing) return
   await db.medicalHistories.delete(contactId)
-  await supabase.from('patient_medical_history').delete().eq('contact_id', contactId).throwOnError()
+  await pushRemoteData({
+    contacts: [],
+    labels: [],
+    phones: [],
+    emails: [],
+    junctions: [],
+    medicalHistory: [],
+    deletions: { contacts: [], labels: [], medicalHistory: [contactId] },
+  }).catch((err) => {
+    console.error(`[sync] no se pudo eliminar el historial clínico ${contactId} en la nube:`, err)
+  })
 }
 
 export async function createLocalLabel(userId: string, name: string, color?: string): Promise<LocalLabel> {
@@ -1125,7 +1013,15 @@ async function runDeleteLocalLabel(userId: string, id: string): Promise<void> {
     // Delete the label row directly so a later pull does NOT resurrect it
     // (the reconcile step re-puts every server-side label). Junction rows
     // cascade via contact_label_junction ON DELETE CASCADE.
-    await supabase.from('contact_labels').delete().eq('id', id).throwOnError()
+    await pushRemoteData({
+      contacts: [],
+      labels: [],
+      phones: [],
+      emails: [],
+      junctions: [],
+      medicalHistory: [],
+      deletions: { contacts: [], labels: [id], medicalHistory: [] },
+    })
   } catch (err) {
     console.warn(`[sync] no se pudo eliminar la etiqueta ${id} en la nube (se reintentará en la próxima escritura):`, err)
   }

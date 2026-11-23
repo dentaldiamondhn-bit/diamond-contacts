@@ -25,57 +25,13 @@ function requireEnv(name: string, value: string | undefined): string {
  * makes every copy of the module agree on a single shared instance, so exactly
  * one client exists per page, and realtime channels run through it too
  * (`realtimeSupabase === supabase`).
+ *
+ * The client uses the ANON key only. All data access happens through server API
+ * routes that use `createServerServiceClient()` (service role key) after Clerk
+ * auth, so no Clerk->Supabase JWT bridge is needed here.
  */
 const shared = globalThis as {
   __diamondSupabaseClient?: SupabaseClient
-}
-
-/**
- * Clerk -> Supabase JWT bridge.
- *
- * The browser still authenticates with Clerk (not GoTrue), so this singleton is
- * created with the ANON key. Ownership RLS therefore needs a Clerk-signed JWT on
- * every request, and `supabase-js` asks for it through the `accessToken`
- * callback below — which it applies to PostgREST/Storage AND to the Realtime
- * socket (`realtime.setAuth`), so `postgres_changes` subscriptions are policed
- * too.
- *
- * There is deliberately NO `window.Clerk` lookup here: `@clerk/nextjs` exposes
- * Clerk through React context only, never as a browser global, so that path
- * silently yielded `null` and every call fell back to the anon key (which, with
- * RLS enabled, reads zero rows). Instead a client component registers a real
- * getter via `registerSupabaseTokenGetter()`.
- */
-type SupabaseTokenGetter = () => Promise<string | null>
-
-const tokenBridge = globalThis as {
-  __diamondSupabaseTokenGetter?: SupabaseTokenGetter | null
-}
-
-/**
- * Register the Clerk token getter. Pass `null` to unregister (e.g. on sign-out).
- * Only the most recent registration wins, which keeps a re-render or a fast
- * account switch from leaving a stale token source behind.
- */
-export function registerSupabaseTokenGetter(getter: SupabaseTokenGetter | null): void {
-  tokenBridge.__diamondSupabaseTokenGetter = getter
-}
-
-/**
- * Resolve the current Clerk token, or `null` when there is no bridge/not signed
- * in. Exported so sync can tell an authorized empty result ("the account really
- * has no rows") apart from an anonymous one ("RLS filtered everything"), which
- * must never be treated as a remote deletion.
- */
-export async function getSupabaseAccessToken(): Promise<string | null> {
-  if (typeof window === 'undefined') return null
-  const getter = tokenBridge.__diamondSupabaseTokenGetter
-  if (!getter) return null
-  try {
-    return await getter()
-  } catch {
-    return null
-  }
 }
 
 function getSupabaseClient(): SupabaseClient {
@@ -91,7 +47,6 @@ function getSupabaseClient(): SupabaseClient {
         detectSessionInUrl: true,
         flowType: 'pkce',
       },
-      accessToken: getSupabaseAccessToken,
       global: {
         headers: {
           'X-Client-Info': 'calendar-app'

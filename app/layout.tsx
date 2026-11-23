@@ -2,7 +2,6 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import AppShell from '@/components/AppShell'
-import SupabaseTokenBridge from '@/components/SupabaseTokenBridge'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { ToastProvider } from '@/components/calendar/Toast'
 
@@ -78,7 +77,6 @@ export default function RootLayout({
           // theme-dependent class on <body>, and nothing mutates body.classList.
           // So a hydration mismatch on <body> would be a real bug worth seeing.
         >
-          <SupabaseTokenBridge />
           <ThemeProvider>
             <ToastProvider>
               <AppShell>{children}</AppShell>
