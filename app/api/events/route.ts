@@ -7,6 +7,7 @@ import {
   dentistConflictMessage,
   findInviteeConflicts,
   inviteeConflictMessage,
+  filterConflictCheckableIds,
 } from '@/lib/dentistAvailability';
 
 export const runtime = 'nodejs';
@@ -127,20 +128,28 @@ export async function POST(req: Request) {
     }
 
     // Inviting books the invitees in this slot too — refuse when an invitee
-    // already owns an overlapping event there.
+    // already owns an overlapping event there. admin / tech-support invitees
+    // always bypass the time-conflict gate.
     if (inviteeIds.length > 0 && !forceConflicts) {
-      const inviteeConflicts = await findInviteeConflicts(
-        supabase, inviteeIds, effectiveDate, effectiveStart, effectiveEnd
-      );
-      if (inviteeConflicts.length > 0) {
-        return NextResponse.json(
-          {
-            error: inviteeConflictMessage(inviteeConflicts),
-            code: 'INVITEE_CONFLICT',
-            conflicts: inviteeConflicts,
-          },
-          { status: 409 }
+      const checkable = await filterConflictCheckableIds(supabase, inviteeIds);
+      if (checkable.length > 0) {
+        const inviteeConflicts = await findInviteeConflicts(
+          supabase,
+          checkable,
+          effectiveDate,
+          effectiveStart,
+          effectiveEnd
         );
+        if (inviteeConflicts.length > 0) {
+          return NextResponse.json(
+            {
+              error: inviteeConflictMessage(inviteeConflicts),
+              code: 'INVITEE_CONFLICT',
+              conflicts: inviteeConflicts,
+            },
+            { status: 409 }
+          );
+        }
       }
     }
 
