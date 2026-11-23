@@ -4,7 +4,7 @@ import { authorizeCalendar } from '@/lib/calendarAuth';
 
 export const runtime = 'nodejs';
 
-/** GET the current user's favorite_invitees (defaults to []). */
+/** GET the current user's full preferences row (favorite_invitees, page_preferences, global_preferences). */
 export async function GET(_req: NextRequest) {
   const authz = await authorizeCalendar();
   if ('response' in authz) return authz.response;
@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest) {
   const supabase = createServerServiceClient();
   const { data, error } = await supabase
     .from('user_preferences')
-    .select('favorite_invitees')
+    .select('*')
     .eq('clerk_user_id', userId)
     .maybeSingle();
 
@@ -21,11 +21,17 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const favorites = Array.isArray(data?.favorite_invitees) ? data.favorite_invitees : [];
-  return NextResponse.json({ favorite_invitees: favorites });
+  return NextResponse.json({
+    clerk_user_id: userId,
+    favorite_invitees: Array.isArray(data?.favorite_invitees) ? data.favorite_invitees : [],
+    page_preferences: data?.page_preferences ?? {},
+    global_preferences: data?.global_preferences ?? {},
+    updated_at: data?.updated_at ?? null,
+  });
 }
 
-/** PUT (upsert) the current user's favorite_invitees array. */
+/** PUT (upsert) the current user's preferences. Accepts a partial row; only
+ *  the provided fields are updated (PostgREST upsert leaves the rest intact). */
 export async function PUT(req: NextRequest) {
   const authz = await authorizeCalendar();
   if ('response' in authz) return authz.response;
@@ -38,9 +44,9 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { favorite_invitees } = body as { favorite_invitees?: unknown };
-  if (!Array.isArray(favorite_invitees) || !favorite_invitees.every((v) => typeof v === 'string')) {
-    return NextResponse.json({ error: 'favorite_invitees must be an array of strings' }, { status: 400 });
+  const prefs = body as Record<string, unknown>;
+  if (!prefs || typeof prefs !== 'object' || Array.isArray(prefs)) {
+    return NextResponse.json({ error: 'Body must be a preferences object' }, { status: 400 });
   }
 
   const supabase = createServerServiceClient();
@@ -49,7 +55,7 @@ export async function PUT(req: NextRequest) {
     .upsert(
       {
         clerk_user_id: userId,
-        favorite_invitees,
+        ...prefs,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'clerk_user_id' }
@@ -59,5 +65,24 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, favorite_invitees });
+  return NextResponse.json({ ok: true });
+}
+
+/** DELETE the current user's preferences row. */
+export async function DELETE(_req: NextRequest) {
+  const authz = await authorizeCalendar();
+  if ('response' in authz) return authz.response;
+  const { userId } = authz;
+
+  const supabase = createServerServiceClient();
+  const { error } = await supabase
+    .from('user_preferences')
+    .delete()
+    .eq('clerk_user_id', userId);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
 }
