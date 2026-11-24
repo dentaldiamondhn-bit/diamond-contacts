@@ -324,6 +324,11 @@ const labelList = useMemo(() => labels ?? [], [labels]);
   const openEditor = (c: LocalContact | null) => setEditor({ open: true, editing: c });
   const closeEditor = () => setEditor({ open: false, editing: null });
 
+  const handleCreateAppointmentFromContact = (contact: LocalContact) => {
+    setEditor({ open: false, editing: null });
+    setAppointmentContact(contact);
+  };
+
   const handleDelete = (c: LocalContact) => setPendingDelete([c]);
 
   const handleRestore = async (c: LocalContact) => {
@@ -660,6 +665,7 @@ const labelList = useMemo(() => labels ?? [], [labels]);
         userId={userId}
         labels={labelList}
         onClose={closeEditor}
+        onCreateAppointment={handleCreateAppointmentFromContact}
       />
 
       {medicalEditor && (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Star, X } from 'lucide-react';
+import { Calendar, Plus, Star, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel, PhoneType } from '@/lib/contacts/db';
 import { fullName, newLocalId } from '@/lib/contacts/db';
@@ -64,9 +64,10 @@ interface ContactEditorModalProps {
   userId?: string;
   labels: LocalLabel[];
   onClose: () => void;
+  onCreateAppointment?: (contact: LocalContact) => void;
 }
 
-export function ContactEditorModal({ open, editing, userId, labels, onClose }: ContactEditorModalProps) {
+export function ContactEditorModal({ open, editing, userId, labels, onClose, onCreateAppointment }: ContactEditorModalProps) {
   const [draft, setDraft] = useState<DraftContact>(() =>
     editing ? draftFromContact(editing) : emptyDraft(),
   );
@@ -102,7 +103,7 @@ export function ContactEditorModal({ open, editing, userId, labels, onClose }: C
     <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{label}</p>
   );
 
-  const save = async () => {
+  const save = async (): Promise<LocalContact | undefined> => {
     if (!userId) return;
     const phones = draft.phones.filter((p) => p.phone_number.trim());
     if (phones.length > 0 && !phones.some((p) => p.is_primary)) phones[0].is_primary = true;
@@ -123,10 +124,18 @@ export function ContactEditorModal({ open, editing, userId, labels, onClose }: C
     };
     if (editing) {
       await updateLocalContact(editing.id, payload);
+      return editing;
     } else {
-      await createLocalContact(userId, { ...payload, emails: [] });
+      return await createLocalContact(userId, { ...payload, emails: [] });
     }
-    onClose();
+  };
+
+  const handleSaveAndCreateAppointment = async () => {
+    const contact = await save();
+    if (contact) {
+      onCreateAppointment?.(contact);
+      onClose();
+    }
   };
 
   return (
@@ -229,7 +238,10 @@ export function ContactEditorModal({ open, editing, userId, labels, onClose }: C
 
         <ModalFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={save}>Guardar</Button>
+          <Button onClick={() => save().then(() => onClose())}>Guardar</Button>
+          <Button variant="default" onClick={handleSaveAndCreateAppointment}>
+            <Calendar size={14} className="mr-1" /> Guardar y crear cita
+          </Button>
         </ModalFooter>
       </ModalContent>
     </Modal>
