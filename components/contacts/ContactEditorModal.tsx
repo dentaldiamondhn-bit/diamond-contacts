@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import type { LocalContact, LocalLabel, PhoneType } from '@/lib/contacts/db';
 import { fullName, newLocalId } from '@/lib/contacts/db';
 import { createLocalContact, updateLocalContact } from '@/lib/contacts/syncEngine';
-import { formatToE164 } from '@/lib/contacts/vcard';
+import { formatPhoneDisplay, formatToE164 } from '@/lib/contacts/vcard';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalBody, ModalFooter } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
@@ -58,6 +58,23 @@ function draftFromContact(c: LocalContact): DraftContact {
   };
 }
 
+/**
+ * Auto-formats a Honduras phone number as the user types: +504 XXXX-XXXX.
+ * Display only — save() still normalizes to E.164 via formatToE164.
+ */
+function formatPhoneInput(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, '')
+  if (!digits) return ''
+  // Assume Honduras (504) national number, 8 digits
+  if (digits.startsWith('504')) {
+    const national = digits.slice(3)
+    if (national.length <= 4) return national ? `+504 ${national}` : '+504 '
+    return `+504 ${national.slice(0, 4)}-${national.slice(4, 8)}`
+  }
+  if (digits.length <= 4) return `+504 ${digits}`
+  return `+504 ${digits.slice(0, 4)}-${digits.slice(4, 8)}`
+}
+
 interface ContactEditorModalProps {
   open: boolean;
   editing: LocalContact | null;
@@ -95,7 +112,14 @@ export function ContactEditorModal({ open, editing, userId, labels, onClose, onC
     ]);
 
   const updatePhone = (id: string, patch: Partial<DraftPhone>) =>
-    set('phones', draft.phones.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    set('phones', draft.phones.map((p) => {
+      if (p.id !== id) return p
+      const next = { ...p, ...patch }
+      if (patch.phone_number !== undefined) {
+        next.phone_number = formatPhoneInput(patch.phone_number)
+      }
+      return next
+    }));
 
   const removePhone = (id: string) => set('phones', draft.phones.filter((p) => p.id !== id));
 
